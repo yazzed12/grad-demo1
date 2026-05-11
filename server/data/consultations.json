@@ -1,0 +1,692 @@
+{
+  "1": {
+    "patientId": "1",
+    "lastUpdated": "2026-04-25T14:27:48.969Z",
+    "toothData": {
+      "11": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "12": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "13": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "14": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "15": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "16": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "17": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "18": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "21": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "22": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "23": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "24": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "25": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "26": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "27": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "28": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "31": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "32": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "33": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "34": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "35": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "36": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "37": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "38": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "41": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "42": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "43": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "44": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "45": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "46": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "47": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "48": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      }
+    }
+  },
+  "P-2025-00123": {
+    "patientId": "P-2025-00123",
+    "lastUpdated": "2026-04-25T14:21:14.473Z",
+    "toothData": {
+      "11": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "12": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "13": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "14": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "15": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "16": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "17": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "18": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "21": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "22": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "23": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "24": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "25": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "26": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "27": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "28": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "31": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "32": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "33": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "34": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "35": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "36": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "37": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "38": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "41": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "42": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "43": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "44": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "45": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "46": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "47": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "48": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      }
+    }
+  },
+  "P-2025-00456": {
+    "patientId": "P-2025-00456",
+    "lastUpdated": "2026-04-25T14:42:13.460Z",
+    "toothData": {
+      "11": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "12": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "13": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "14": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "15": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "16": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "17": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "18": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "21": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "22": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "23": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "24": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "25": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "26": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "27": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "28": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "31": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "32": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "33": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "34": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "35": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "36": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "37": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "38": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "41": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "42": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "43": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "44": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "45": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "46": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "47": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      },
+      "48": {
+        "status": "healthy",
+        "notes": "",
+        "history": [],
+        "conditions": [],
+        "treatments": []
+      }
+    }
+  }
+}
