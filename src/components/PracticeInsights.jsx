@@ -1,119 +1,136 @@
-import React, { useState, useEffect } from 'react';
-import { Sparkles, TrendingUp, Users, Calendar, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
-
-const API_BASE = 'http://localhost:8000/api';
+import React, { useMemo } from 'react';
+import {
+  Sparkles, TrendingUp, Users, Calendar,
+  CheckCircle2, Clock, Stethoscope, FileText
+} from 'lucide-react';
+import { useData } from '../context/DataContext';
 
 export default function PracticeInsights() {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const { appointments, patients, records } = useData();
 
-  useEffect(() => {
-    const fetchInsights = async () => {
-      try {
-        setLoading(true);
-        const res = await fetch(`${API_BASE}/ai/insights`);
-        if (!res.ok) throw new Error('Failed to fetch AI insights');
-        const result = await res.json();
-        setData(result);
-        setError(null);
-      } catch (err) {
-        console.error('Insights fetch error:', err);
-        setError('Could not load AI insights at this time.');
-      } finally {
-        setLoading(false);
-      }
-    };
+  const todayStr = new Date().toISOString().split('T')[0];
 
-    fetchInsights();
-  }, []);
+  const stats = useMemo(() => {
+    const todayAppts = appointments.filter(a => a.date === todayStr);
+    const completed = todayAppts.filter(a => a.status === 'Completed').length;
+    const pending = todayAppts.filter(a => a.status !== 'Completed').length;
+    const total = todayAppts.length;
+    const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
 
-  if (loading) {
-    return (
-      <div className="card animate-pulse" style={{ minHeight: '200px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <div style={{ height: '24px', background: '#e2e8f0', width: '40%', borderRadius: '4px' }}></div>
-        <div style={{ height: '60px', background: '#f1f5f9', width: '100%', borderRadius: '8px' }}></div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-          <div style={{ height: '40px', background: '#f1f5f9', borderRadius: '8px' }}></div>
-          <div style={{ height: '40px', background: '#f1f5f9', borderRadius: '8px' }}></div>
-        </div>
-      </div>
-    );
-  }
+    // Upcoming types breakdown
+    const types = {};
+    todayAppts.filter(a => a.status !== 'Completed').forEach(a => {
+      const t = a.type || 'General';
+      types[t] = (types[t] || 0) + 1;
+    });
+    const topTypes = Object.entries(types).sort((a, b) => b[1] - a[1]).slice(0, 3);
 
-  if (error) {
-    return (
-      <div className="card" style={{ border: '1px solid #fee2e2', background: '#fef2f2' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#dc2626' }}>
-          <AlertCircle size={20} />
-          <strong style={{ fontSize: '0.9rem' }}>AI Insights Unavailable</strong>
-        </div>
-        <p style={{ margin: '8px 0 0', fontSize: '0.85rem', color: '#991b1b' }}>{error}</p>
-      </div>
-    );
-  }
+    return { completed, pending, total, completionRate, topTypes, totalPatients: patients.length, totalRecords: records.length };
+  }, [appointments, patients, records, todayStr]);
+
+  const metrics = [
+    { label: 'Total Patients', value: stats.totalPatients, icon: Users, color: '#6366f1' },
+    { label: 'Today Sessions', value: stats.total, icon: Calendar, color: '#ec4899' },
+    { label: 'Completed', value: stats.completed, icon: CheckCircle2, color: '#10b981' },
+    { label: 'Pending', value: stats.pending, icon: Clock, color: '#f59e0b' },
+  ];
+
+  // Generate actionable insights based on real data
+  const insights = useMemo(() => {
+    const list = [];
+    if (stats.pending > 0) {
+      list.push(`${stats.pending} consultation${stats.pending > 1 ? 's' : ''} remaining for today.`);
+    }
+    if (stats.completed > 0 && stats.pending === 0) {
+      list.push('All consultations for today are complete. Great work!');
+    }
+    if (stats.total === 0) {
+      list.push('No appointments scheduled for today. Consider reviewing pending records.');
+    }
+    if (stats.topTypes.length > 0) {
+      const typesStr = stats.topTypes.map(([t, c]) => `${t} (${c})`).join(', ');
+      list.push(`Today's appointment types: ${typesStr}`);
+    }
+    if (stats.totalRecords > 0) {
+      list.push(`${stats.totalRecords} active clinical record${stats.totalRecords > 1 ? 's' : ''} in the system.`);
+    }
+    if (list.length === 0) {
+      list.push('Clinic is operating normally. Continue monitoring your schedule.');
+    }
+    return list;
+  }, [stats]);
 
   return (
     <div className="card" style={{ position: 'relative', overflow: 'hidden' }}>
-      {/* Background Decorative Sparkle */}
-      <Sparkles size={120} style={{ position: 'absolute', top: '-20px', right: '-20px', opacity: 0.03, color: 'var(--clr-primary)' }} />
-      
-      <div className="section-header" style={{ marginBottom: '16px' }}>
+      {/* Subtle background decoration */}
+      <Sparkles size={100} style={{ position: 'absolute', top: -16, right: -16, opacity: 0.03, color: 'var(--clr-primary)' }} />
+
+      <div className="section-header" style={{ marginBottom: 16 }}>
         <div>
-          <p className="section-kicker" style={{ color: 'var(--clr-primary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <Sparkles size={12} /> AI Generated
+          <p className="section-kicker" style={{ color: 'var(--clr-primary)', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <Sparkles size={12} /> Today's Summary
           </p>
-          <h3 className="section-title">Practice Insights</h3>
+          <h3 className="section-title">Practice Overview</h3>
         </div>
-        <TrendingUp size={22} color="var(--clr-primary)" />
+        {stats.total > 0 && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '6px 14px', borderRadius: 999,
+            background: stats.completionRate === 100 ? 'var(--clr-primary-light)' : 'rgba(245, 158, 11, 0.1)',
+            color: stats.completionRate === 100 ? 'var(--clr-primary-dark)' : '#b45309',
+            fontSize: '0.78rem', fontWeight: 800,
+          }}>
+            <TrendingUp size={14} />
+            {stats.completionRate}% complete
+          </div>
+        )}
       </div>
 
-      <div style={{ background: 'var(--clr-surface-50, #f8fafc)', padding: '16px', borderRadius: '12px', border: '1px solid var(--clr-border)', marginBottom: '20px' }}>
-        <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: 'var(--clr-text-primary)', lineHeight: 1.4 }}>
-          {data?.summary}
-        </p>
+      {/* Metric Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 18 }}>
+        {metrics.map((m) => (
+          <div key={m.label} style={{
+            padding: 12,
+            background: 'var(--clr-bg)',
+            border: '1px solid var(--clr-border)',
+            borderRadius: 10,
+            display: 'flex', alignItems: 'center', gap: 10,
+          }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 8,
+              background: `${m.color}15`,
+              display: 'grid', placeItems: 'center',
+            }}>
+              <m.icon size={16} color={m.color} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.68rem', color: 'var(--clr-subtext)', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.02em' }}>
+                {m.label}
+              </div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 900, color: 'var(--clr-text)' }}>
+                {m.value}
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', marginBottom: '20px' }}>
-        <div style={{ padding: '12px', background: '#fff', border: '1px solid #eee', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Users size={18} color="#6366f1" />
-          <div>
-            <div style={{ fontSize: '0.75rem', color: '#666', textTransform: 'uppercase', fontWeight: 600 }}>Patients</div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 700 }}>{data?.stats?.patients}</div>
-          </div>
-        </div>
-        <div style={{ padding: '12px', background: '#fff', border: '1px solid #eee', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Calendar size={18} color="#ec4899" />
-          <div>
-            <div style={{ fontSize: '0.75rem', color: '#666', textTransform: 'uppercase', fontWeight: 600 }}>Today</div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 700 }}>{data?.stats?.today_appointments}</div>
-          </div>
-        </div>
-        <div style={{ padding: '12px', background: '#fff', border: '1px solid #eee', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <CheckCircle2 size={18} color="#10b981" />
-          <div>
-            <div style={{ fontSize: '0.75rem', color: '#666', textTransform: 'uppercase', fontWeight: 600 }}>Done</div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 700 }}>{data?.stats?.completed}</div>
-          </div>
-        </div>
-        <div style={{ padding: '12px', background: '#fff', border: '1px solid #eee', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Clock size={18} color="#f59e0b" />
-          <div>
-            <div style={{ fontSize: '0.75rem', color: '#666', textTransform: 'uppercase', fontWeight: 600 }}>Pending</div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 700 }}>{data?.stats?.pending}</div>
-          </div>
-        </div>
-      </div>
-
+      {/* Insights */}
       <div>
-        <h4 style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <TrendingUp size={16} /> AI Recommendations
+        <h4 style={{ fontSize: '0.84rem', fontWeight: 800, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6, color: 'var(--clr-text)' }}>
+          <Stethoscope size={14} color="var(--clr-primary)" /> Clinical Insights
         </h4>
-        <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {data?.recommendations?.map((rec, i) => (
-            <li key={i} style={{ display: 'flex', gap: '10px', fontSize: '0.88rem', color: 'var(--clr-text-secondary)', background: 'rgba(99, 102, 241, 0.05)', padding: '10px', borderRadius: '8px', borderLeft: '3px solid var(--clr-primary)' }}>
+        <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {insights.map((insight, i) => (
+            <li key={i} style={{
+              display: 'flex', gap: 10, fontSize: '0.84rem',
+              color: 'var(--clr-subtext)',
+              padding: '10px 12px', borderRadius: 8,
+              background: 'var(--clr-bg)',
+              borderLeft: '3px solid var(--clr-primary)',
+            }}>
               <span style={{ color: 'var(--clr-primary)', fontWeight: 'bold' }}>•</span>
-              {rec}
+              {insight}
             </li>
           ))}
         </ul>

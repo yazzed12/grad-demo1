@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Activity, Calendar, ChevronRight, Clock, ShieldCheck, Star, Users } from 'lucide-react';
+import { Activity, Calendar, Clock, Star, Users } from 'lucide-react';
 import Layout from '../../components/Layout';
 import UpcomingConsultations from '../../components/UpcomingConsultations';
 import PracticeInsights from '../../components/PracticeInsights';
@@ -47,17 +46,17 @@ export default function DoctorDashboard() {
   }, []);
 
   const metrics = [
-    { label: 'Total Patients',      value: dashboardStats?.totalPatients    ?? '—', icon: Users    },
-    { label: 'Today Appointments',  value: dashboardStats?.todayAppointments ?? '—', icon: Calendar },
-    { label: 'Active Records',      value: dashboardStats?.activeRecords     ?? '—', icon: Activity },
-    { label: 'Clinic Rating',       value: dashboardStats?.rating            ?? '—', icon: Star     },
+    { label: 'Total Patients',     value: dashboardStats?.totalPatients    ?? '—', icon: Users    },
+    { label: 'Today Appointments', value: dashboardStats?.todayAppointments ?? '—', icon: Calendar },
+    { label: 'Active Records',     value: dashboardStats?.activeRecords     ?? '—', icon: Activity },
+    { label: 'Clinic Rating',      value: dashboardStats?.rating            ?? '—', icon: Star     },
   ];
 
   return (
     <Layout pageTitle="Clinical Overview" pageSubtitle="Today schedule, patient queue, and clinical activity.">
       <div className="page-stack animate-fadeIn">
 
-        {/* ── Practice Insights (AI Powered) ─────────────────────────── */}
+        {/* ── Practice Summary (Data-Driven) ─────────────────────────── */}
         <section>
           <PracticeInsights />
         </section>
@@ -86,7 +85,7 @@ export default function DoctorDashboard() {
         {/* ── Main Content Grid ─────────────────────────────────────────── */}
         <section className="content-grid-2">
 
-          {/* Upcoming Consultations Component */}
+          {/* Today's Consultations */}
           <UpcomingConsultations />
 
           {/* Right Column */}
@@ -97,17 +96,17 @@ export default function DoctorDashboard() {
               <AIChatPanel />
             </section>
 
-            {/* Practice Insight (Static - we can keep or remove, but user asked for new component) */}
-            {/* ... keeping it for design balance or replacing with something else ... */}
-
             {/* Recent Clinical Logs */}
             <div className="card">
-              <h3 className="section-title">Recent Clinical Logs</h3>
+              <h3 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Clock size={16} color="var(--clr-primary)" />
+                Recent Clinical Logs
+              </h3>
               <div className="page-stack" style={{ gap: 12, marginTop: 14 }}>
                 {loading ? (
                   <div style={{ opacity: 0.4, fontSize: '0.86rem' }}>Loading logs…</div>
                 ) : logs.length === 0 ? (
-                  <div style={{ color: 'var(--clr-muted)', fontSize: '0.86rem' }}>No logs available.</div>
+                  <div style={{ color: 'var(--clr-subtext)', fontSize: '0.86rem' }}>No logs available.</div>
                 ) : (
                   logs.map((log) => (
                     <div className="row-actions" key={log.id} style={{ alignItems: 'flex-start' }}>

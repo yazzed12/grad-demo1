@@ -8,7 +8,8 @@ import { FDI_TOOTH_MAP, TOOTH_TYPES, TOOTH_STATUS } from '../data/toothData';
 const STATUS_COLORS = {
   [TOOTH_STATUS.HEALTHY]: '#FFFFFF',
   [TOOTH_STATUS.PROBLEM]: '#EF4444', 
-  [TOOTH_STATUS.TREATED]: '#10B981', 
+  [TOOTH_STATUS.TREATED]: '#3B82F6',
+  [TOOTH_STATUS.MISSING]: '#64748B',
   SELECTED: '#FACC15', // Yellow for selection
 };
 
@@ -40,6 +41,7 @@ const Tooth = ({ id, status, isSelected, onClick, showNumbers }) => {
   const [hovered, setHovered] = useState(false);
   const toothInfo = FDI_TOOTH_MAP[id];
   const { pos, rot } = useMemo(() => getToothPosition(id), [id]);
+  const isMissing = status === TOOTH_STATUS.MISSING;
 
   const getColor = () => {
     if (isSelected) return STATUS_COLORS.SELECTED;
@@ -80,19 +82,23 @@ const Tooth = ({ id, status, isSelected, onClick, showNumbers }) => {
       >
         <meshPhysicalMaterial 
           color={getColor()} 
-          roughness={0.2} 
+          roughness={isMissing ? 0.8 : 0.2} 
           metalness={0.1} 
-          clearcoat={0.8}
+          clearcoat={isMissing ? 0 : 0.8}
+          opacity={isMissing ? 0.35 : 1}
+          transparent={isMissing}
           emissive={hovered && !isSelected ? '#10B981' : '#000000'}
           emissiveIntensity={hovered ? 0.3 : 0}
         />
       </RoundedBox>
 
       {/* Root/Gums base */}
-      <mesh position={[0, toothInfo.arch === 'upper' ? -0.4 : -0.4, 0]}>
-        <capsuleGeometry args={[0.15, 0.3, 4, 8]} />
-        <meshStandardMaterial color={isSelected ? '#FACC15' : '#E5E7EB'} />
-      </mesh>
+      {!isMissing && (
+        <mesh position={[0, toothInfo.arch === 'upper' ? -0.4 : -0.4, 0]}>
+          <capsuleGeometry args={[0.15, 0.3, 4, 8]} />
+          <meshStandardMaterial color={isSelected ? '#FACC15' : '#E5E7EB'} />
+        </mesh>
+      )}
     </group>
   );
 };

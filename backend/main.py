@@ -15,6 +15,7 @@ import sys
 import os
 from google import genai
 from dotenv import load_dotenv
+from ai_service import generate_clinical_report, humanize_report as humanize_report_ai
 
 load_dotenv()
 
@@ -212,6 +213,7 @@ def bootstrap_default_users():
         if db.query(models.User).count() > 0:
             return
 
+        demo_users = [
             models.User(
                 username="doctor1",
                 hashed_password=pwd_context.hash("password123"),
@@ -438,6 +440,41 @@ def update_appointment_status(appointment_id: int, status_update: dict, db: Sess
         db.refresh(appt)
     return {"status": "success", "new_status": appt.status}
 
+@app.put("/api/appointments/{appointment_id}")
+def update_appointment(appointment_id: int, payload: dict, db: Session = Depends(get_db), user: models.User = Depends(require_role('doctor'))):
+    appt = db.query(models.Appointment).filter(models.Appointment.id == appointment_id).first()
+    if not appt:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    
+    if "date" in payload:
+        try:
+            appt.date = date.fromisoformat(payload["date"])
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format")
+    if "time" in payload:
+        appt.time = payload["time"]
+    if "type" in payload:
+        appt.type = payload["type"]
+    if "status" in payload:
+        appt.status = payload["status"]
+    if "notes" in payload:
+        appt.notes = payload.get("notes", "")
+    
+    log_event(db, f"Appointment {appointment_id} updated by {user.username}", doctor_id=user.id, patient_id=appt.patient_id)
+    db.commit()
+    db.refresh(appt)
+    
+    patient = db.query(models.Patient).filter(models.Patient.id == appt.patient_id).first()
+    return {
+        "id": appt.id,
+        "patient_id": appt.patient_id,
+        "patient": patient.name if patient else "Unknown",
+        "date": str(appt.date),
+        "time": appt.time,
+        "type": appt.type,
+        "status": appt.status,
+        "notes": getattr(appt, 'notes', '')
+    }
 @app.delete("/api/appointments/{appointment_id}")
 def delete_appointment(appointment_id: int, db: Session = Depends(get_db), user: models.User = Depends(require_role('doctor'))):
     appt = db.query(models.Appointment).filter(models.Appointment.id == appointment_id).first()
@@ -551,6 +588,87 @@ def finish_appointment(appointment_id: int, db: Session = Depends(get_db), user:
     log_event(db, f"Appointment finished by {user.username}", doctor_id=user.id, patient_id=appt.patient_id)
     db.commit()
     return {"status": "success"}
+
+# ── Clinical Reports (AI + CRUD) ────────────────────────────────────────────
+@app.post("/api/ai/generate-report")
+def ai_generate_report(payload: dict, db: Session = Depends(get_db), user: models.User = Depends(require_role('doctor'))):
+    """Generate AI clinical report from consultation data via LangChain + Ollama."""
+    try:
+        report_text = generate_clinical_report(payload)
+        return {"status": "success", "report": report_text}
+    except Exception as e:
+        logger.error(f"AI Report Generation Error: {e}")
+        raise HTTPException(status_code=500, detail=f"AI report generation failed: {str(e)}")
+
+@app.post("/api/ai/humanize-report")
+def ai_humanize_report(payload: dict, db: Session = Depends(get_db), user: models.User = Depends(require_role('doctor'))):
+    """Convert medical report to patient-friendly language via LangChain + Ollama."""
+    medical_report = payload.get("report", "")
+    patient_name = payload.get("patient_name", "Patient")
+    if not medical_report:
+        raise HTTPException(status_code=400, detail="Report text is required")
+    try:
+        humanized = humanize_report_ai(medical_report, patient_name)
+        return {"status": "success", "humanized_report": humanized}
+    except Exception as e:
+        logger.error(f"Report Humanization Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Humanization failed: {str(e)}")
+
+@app.post("/api/reports")
+def save_report(payload: dict, db: Session = Depends(get_db), user: models.User = Depends(require_role('doctor'))):
+    """Save a finalized clinical report."""
+    report = models.ClinicalReport(
+        patient_id=payload.get("patient_id"),
+        doctor_id=user.id,
+        appointment_id=payload.get("appointment_id"),
+        tooth_id=payload.get("tooth_id"),
+        tooth_status=payload.get("tooth_status"),
+        symptoms=json.dumps(payload.get("symptoms", [])),
+        doctor_notes=payload.get("doctor_notes", ""),
+        ai_draft_report=payload.get("ai_draft_report", ""),
+        final_medical_report=payload.get("final_medical_report", ""),
+        humanized_report=payload.get("humanized_report", ""),
+        status=payload.get("status", "approved")
+    )
+    db.add(report)
+    log_event(db, f"Clinical report saved for patient {payload.get('patient_id')}", doctor_id=user.id, patient_id=payload.get("patient_id"))
+    db.commit()
+    db.refresh(report)
+    return {
+        "id": report.id, "patient_id": report.patient_id, "status": report.status,
+        "tooth_id": report.tooth_id, "created_at": str(report.created_at)
+    }
+
+@app.get("/api/reports/patient/{patient_id}")
+def get_patient_reports(patient_id: int, db: Session = Depends(get_db)):
+    """Get all clinical reports for a patient."""
+    reports = db.query(models.ClinicalReport).filter(
+        models.ClinicalReport.patient_id == patient_id
+    ).order_by(models.ClinicalReport.created_at.desc()).all()
+    return [{
+        "id": r.id, "patient_id": r.patient_id, "doctor_id": r.doctor_id,
+        "tooth_id": r.tooth_id, "tooth_status": r.tooth_status,
+        "symptoms": json.loads(r.symptoms) if r.symptoms else [],
+        "doctor_notes": r.doctor_notes, "ai_draft_report": r.ai_draft_report,
+        "final_medical_report": r.final_medical_report,
+        "humanized_report": r.humanized_report, "status": r.status,
+        "created_at": str(r.created_at), "updated_at": str(r.updated_at),
+        "doctor": r.doctor.full_name or r.doctor.username if r.doctor else "Unknown"
+    } for r in reports]
+
+@app.put("/api/reports/{report_id}")
+def update_report(report_id: int, payload: dict, db: Session = Depends(get_db), user: models.User = Depends(require_role('doctor'))):
+    """Update an existing clinical report."""
+    report = db.query(models.ClinicalReport).filter(models.ClinicalReport.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    for field in ["final_medical_report", "humanized_report", "status", "doctor_notes", "tooth_id", "tooth_status", "symptoms"]:
+        if field in payload:
+            val = json.dumps(payload[field]) if field == "symptoms" and isinstance(payload[field], list) else payload[field]
+            setattr(report, field, val)
+    db.commit()
+    db.refresh(report)
+    return {"id": report.id, "status": report.status, "updated_at": str(report.updated_at)}
 
 # ── AI Endpoints ────────────────────────────────────────────────────────────
 @app.get("/api/ai/insights", response_model=InsightResponse)
