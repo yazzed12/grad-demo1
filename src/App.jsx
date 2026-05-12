@@ -22,6 +22,7 @@ import Appointments from './pages/Appointments';
 import Doctors from './pages/Doctors';
 import Records from './pages/Records';
 import Billing from './pages/Billing';
+import Settings from './pages/Settings';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user } = useAuth();
@@ -88,6 +89,11 @@ export default function App() {
           <Route path="/receptionist/calendar" element={<ProtectedRoute allowedRoles={['receptionist']}><Appointments /></ProtectedRoute>} />
           <Route path="/patient/records" element={<ProtectedRoute allowedRoles={['patient']}><Records /></ProtectedRoute>} />
           <Route path="/patient/appointments" element={<ProtectedRoute allowedRoles={['patient']}><Appointments /></ProtectedRoute>} />
+
+          {/* Settings Routes */}
+          <Route path="/doctor/settings" element={<ProtectedRoute allowedRoles={['doctor']}><Settings /></ProtectedRoute>} />
+          <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={['admin']}><Settings /></ProtectedRoute>} />
+          <Route path="/receptionist/settings" element={<ProtectedRoute allowedRoles={['receptionist']}><Settings /></ProtectedRoute>} />
 
           {/* Patient Routes */}
           <Route path="/patient" element={

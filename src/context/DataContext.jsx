@@ -152,6 +152,30 @@ export function DataProvider({ children }) {
     }
   };
 
+  const updateAppointment = async (id, updates) => {
+    // Optimistic UI
+    setAppointments(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a));
+    try {
+      const token = localStorage.getItem('clinic_token');
+      const response = await fetch(`${API_BASE}/appointments/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updates)
+      });
+      if (response.ok) {
+        const updated = await response.json();
+        setAppointments(prev => prev.map(a => a.id === id ? { ...a, ...updated } : a));
+        return updated;
+      }
+    } catch (err) {
+      console.error('Error updating appointment:', err);
+    }
+    return null;
+  };
+
   const completeAppointmentByPatient = async (patientId) => {
     // 1. Update Local State (Optimistic UI)
     setAppointments(prev => prev.map(a => 
@@ -184,6 +208,7 @@ export function DataProvider({ children }) {
     addPatient,
     deletePatient,
     addAppointment,
+    updateAppointment,
     updateAppointmentStatus,
     deleteAppointment,
     completeAppointmentByPatient,

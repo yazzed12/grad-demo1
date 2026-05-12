@@ -8,7 +8,8 @@ export const TOOTH_TYPES = {
 export const TOOTH_STATUS = {
   HEALTHY: 'healthy',
   PROBLEM: 'problem',
-  TREATED: 'treated'
+  TREATED: 'treated',
+  MISSING: 'missing'
 };
 
 // Source of truth for FDI Tooth Mapping (ISO 3950)

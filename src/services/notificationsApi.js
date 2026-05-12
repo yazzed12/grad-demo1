@@ -7,18 +7,44 @@ function getAuthHeaders() {
 
 const fallbackNotifications = [
   {
-    id: 'demo-1',
-    title: 'Daily schedule synced',
-    body: 'Your appointments for today are up to date.',
+    id: 'notif-1',
+    title: 'New Appointment Booked',
+    body: 'Patient Ahmad Hassan has been scheduled for 2:30 PM today.',
+    type: 'info',
     read: false,
-    createdAt: new Date().toISOString(),
+    created_at: new Date(Date.now() - 5 * 60000).toISOString(),
   },
   {
-    id: 'demo-2',
-    title: 'System check complete',
-    body: 'All clinic modules are operational.',
+    id: 'notif-2',
+    title: 'Consultation Completed',
+    body: 'Dr. Sarah Mitchell finished consultation with Layla Khalil.',
+    type: 'success',
+    read: false,
+    created_at: new Date(Date.now() - 25 * 60000).toISOString(),
+  },
+  {
+    id: 'notif-3',
+    title: 'AI Report Generated',
+    body: 'Practice insights report for this week is now available.',
+    type: 'info',
+    read: false,
+    created_at: new Date(Date.now() - 2 * 3600000).toISOString(),
+  },
+  {
+    id: 'notif-4',
+    title: 'Appointment Status Changed',
+    body: 'Omar Youssef appointment status changed to Confirmed.',
+    type: 'info',
     read: true,
-    createdAt: new Date(Date.now() - 3600 * 1000).toISOString(),
+    created_at: new Date(Date.now() - 4 * 3600000).toISOString(),
+  },
+  {
+    id: 'notif-5',
+    title: 'System Ready',
+    body: 'Backend-driven clinical system is now active and operational.',
+    type: 'success',
+    read: true,
+    created_at: new Date(Date.now() - 24 * 3600000).toISOString(),
   },
 ];
 

@@ -83,3 +83,24 @@ class Notification(Base):
     read = Column(Integer, default=0) # 0 for false, 1 for true
     created_at = Column(DateTime, default=datetime.utcnow)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+class ClinicalReport(Base):
+    __tablename__ = "clinical_reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False)
+    doctor_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    appointment_id = Column(Integer, ForeignKey("appointments.id"), nullable=True)
+    tooth_id = Column(String, nullable=True)
+    tooth_status = Column(String, nullable=True)
+    symptoms = Column(Text, nullable=True)  # JSON array
+    doctor_notes = Column(Text, nullable=True)
+    ai_draft_report = Column(Text, nullable=True)
+    final_medical_report = Column(Text, nullable=True)
+    humanized_report = Column(Text, nullable=True)
+    status = Column(String, default="draft")  # draft / approved / finalized
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    patient = relationship("Patient")
+    doctor = relationship("User")
