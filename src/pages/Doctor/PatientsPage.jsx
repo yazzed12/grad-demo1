@@ -3,12 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { Calendar, ChevronRight, Clock, Filter, Phone, Plus, Search, Stethoscope, User, X, Eye } from 'lucide-react';
 import Layout from '../../components/Layout';
 import { useData } from '../../context/DataContext';
+import { useAuth } from '../../context/AuthContext';
 import { PatientViewModal, NewPatientModal, FilterPanel } from '../../components/PatientModals';
 
 const DEFAULT_FILTERS = { status: '', gender: '', hasRecords: '' };
 
 export default function PatientsPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { patients, appointments, records, addPatient } = useData();
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
@@ -172,10 +174,12 @@ export default function PatientsPage() {
                           className="btn btn-secondary btn-sm" style={{ flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:5,fontSize:'0.78rem' }}>
                           <Eye size={13}/> View Patient
                         </button>
-                        <button onClick={()=>navigate(`/doctor/consultation/${patient.id}`, { state: { patient } })}
-                          className="btn btn-primary btn-sm" style={{ flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:5,fontSize:'0.78rem' }}>
-                          <Stethoscope size={13}/> View Consultation
-                        </button>
+                        {(user?.role === 'doctor' || user?.role === 'admin') && (
+                          <button onClick={()=>navigate(`/doctor/consultation/${patient.id}`, { state: { patient } })}
+                            className="btn btn-primary btn-sm" style={{ flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:5,fontSize:'0.78rem' }}>
+                            <Stethoscope size={13}/> View Consultation
+                          </button>
+                        )}
                       </div>
                     </article>
                   );

@@ -49,7 +49,6 @@ export default function Login() {
             <p className="auth-kicker">Welcome back</p>
             <h2>Sign in</h2>
           </div>
-          <span className="auth-status-pill">Demo ready</span>
         </div>
 
         <form onSubmit={handleLogin} className="auth-form">
@@ -101,7 +100,7 @@ export default function Login() {
           </button>
 
           <p className="auth-switch">
-            New to Smart Clinic? <Link to="/register">Create an account</Link>
+            New to Smart Dental Clinic? <Link to="/register">Create an account</Link>
           </p>
         </form>
       </div>

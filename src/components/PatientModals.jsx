@@ -1,8 +1,10 @@
 import { useState, useMemo } from 'react';
 import { X, User, Calendar, Clock, FileText, Edit3, Save, Phone, Droplets, Activity, Stethoscope, ChevronRight, AlertCircle, CheckCircle, Eye } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 /* ── Patient View Modal (tabbed) ───────────────────────────── */
 export function PatientViewModal({ patient, appointments, records, onClose, onViewConsultation, onCreateAppointment }) {
+  const { user } = useAuth();
   const [tab, setTab] = useState('overview');
 
   const patientAppts = useMemo(() =>
@@ -20,10 +22,13 @@ export function PatientViewModal({ patient, appointments, records, onClose, onVi
 
   const tabs = [
     { id: 'overview', label: 'Overview' },
-    { id: 'consultations', label: `Consultations (${completedAppts.length})` },
-    { id: 'reports', label: `Reports (${patientRecords.length})` },
     { id: 'appointments', label: `Appointments (${patientAppts.length})` },
   ];
+
+  if (user?.role === 'doctor' || user?.role === 'admin') {
+    tabs.splice(1, 0, { id: 'consultations', label: `Consultations (${completedAppts.length})` });
+    tabs.splice(2, 0, { id: 'reports', label: `Reports (${patientRecords.length})` });
+  }
 
   return (
     <div className="modal-overlay" onClick={onClose} style={{ position:'fixed',inset:0,zIndex:99999,display:'flex',alignItems:'center',justifyContent:'center',padding:20,backgroundColor:'rgba(0,0,0,0.45)',backdropFilter:'blur(3px)' }}>
@@ -92,9 +97,11 @@ export function PatientViewModal({ patient, appointments, records, onClose, onVi
               </div>
               {/* Actions */}
               <div style={{ display:'flex',gap:10,marginTop:6 }}>
-                <button className="btn btn-primary btn-sm" onClick={()=>onViewConsultation(patient)} style={{ flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:6 }}>
-                  <Stethoscope size={14}/> View Consultation
-                </button>
+                {(user?.role === 'doctor' || user?.role === 'admin') && (
+                  <button className="btn btn-primary btn-sm" onClick={()=>onViewConsultation(patient)} style={{ flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:6 }}>
+                    <Stethoscope size={14}/> View Consultation
+                  </button>
+                )}
                 <button className="btn btn-secondary btn-sm" onClick={()=>{onClose();onCreateAppointment&&onCreateAppointment(patient);}} style={{ flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:6 }}>
                   <Calendar size={14}/> Book Appointment
                 </button>

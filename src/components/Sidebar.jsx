@@ -2,21 +2,24 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   Activity, LayoutDashboard, Users, CalendarDays,
-  Settings, UserCog, Stethoscope
+  Settings, UserCog, Stethoscope, ClipboardList
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useClinic } from '../context/ClinicContext';
 
 const roleLinks = {
   doctor: [
     { path: '/doctor', icon: LayoutDashboard, labelKey: 'dashboard' },
     { path: '/doctor/appointments', icon: CalendarDays, labelKey: 'appointments' },
     { path: '/doctor/patients', icon: Users, labelKey: 'patients' },
+    { path: '/doctor/consultations-history', icon: ClipboardList, labelKey: 'consultationHistory' },
     { path: '/doctor/settings', icon: Settings, labelKey: 'settings' },
   ],
   admin: [
     { path: '/admin', icon: LayoutDashboard, labelKey: 'dashboard' },
     { path: '/admin/doctors', icon: Stethoscope, labelKey: 'doctors' },
+    { path: '/admin/receptionists', icon: Users, labelKey: 'receptionists' },
     { path: '/admin/settings', icon: Settings, labelKey: 'settings' },
   ],
   receptionist: [
@@ -35,10 +38,15 @@ const roleLinks = {
 export default function Sidebar() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const { clinicSettings } = useClinic();
 
   const role = user?.role || 'doctor';
   const links = roleLinks[role] || roleLinks.doctor;
   const basePath = `/${role}`;
+  
+  const clinicName = clinicSettings?.name || t('clinicName');
+  // Use a short version of the address or just keep clinicSub if it doesn't make sense. We'll stick to a default subtitle if none.
+  const clinicSub = t('clinicSub');
 
   return (
     <div className="sidebar">
@@ -47,8 +55,8 @@ export default function Sidebar() {
           <Activity size={20} color="#fff" />
         </div>
         <div>
-          <div className="sidebar-logo-text">{t('clinicName')}</div>
-          <div className="sidebar-logo-sub text-gradient-teal">{t('clinicSub')}</div>
+          <div className="sidebar-logo-text">{clinicName}</div>
+          <div className="sidebar-logo-sub text-gradient-teal">{clinicSub}</div>
         </div>
       </div>
       

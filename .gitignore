@@ -6,11 +6,15 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+*.db
+*.sqlite
+*.sqlite3
 
 node_modules
 dist
 dist-ssr
 *.local
+
 
 # Editor directories and files
 .vscode/*
@@ -27,5 +31,7 @@ dist-ssr
 __pycache__/
 *.pyc
 backend/venv/
-backend/clinic.db
+backend/*.db
+backend/*.sqlite3
 .env
+

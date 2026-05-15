@@ -195,7 +195,6 @@ export default function UpcomingConsultations() {
                     </button>
                     <Link
                       to={`/doctor/consultation/${appt.patient_id}`}
-                      state={{ patient: { id: appt.patient_id, name: patientName } }}
                       className="btn btn-primary btn-sm"
                       style={{ gap: 4 }}
                     >

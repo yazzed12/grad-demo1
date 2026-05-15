@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ClinicProvider } from './context/ClinicContext';
 import { DataProvider } from './context/DataContext';
 import './index.css';
 
@@ -23,6 +24,8 @@ import Doctors from './pages/Doctors';
 import Records from './pages/Records';
 import Billing from './pages/Billing';
 import Settings from './pages/Settings';
+import Receptionists from './pages/Receptionists';
+import ConsultationsHistory from './pages/Doctor/ConsultationsHistory';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user } = useAuth();
@@ -46,67 +49,75 @@ export default function App() {
   return (
     <DataProvider>
       <AuthProvider>
-        <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          
-          <Route path="/" element={<RootRedirect />} />
+        <ClinicProvider>
+          <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            
+            <Route path="/" element={<RootRedirect />} />
 
-          {/* Admin Routes */}
-          <Route path="/admin" element={
-            <ProtectedRoute allowedRoles={['admin']}>
-              <AdminDashboard />
-            </ProtectedRoute>
-          } />
+            {/* Admin Routes */}
+            <Route path="/admin" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminDashboard />
+              </ProtectedRoute>
+            } />
 
-          {/* Doctor Routes */}
-          <Route path="/doctor" element={
-            <ProtectedRoute allowedRoles={['doctor']}>
-              <DoctorDashboard />
-            </ProtectedRoute>
-          } />
-          <Route path="/doctor/consultation/:id" element={
-            <ProtectedRoute allowedRoles={['doctor']}>
-              <ConsultationFlow />
-            </ProtectedRoute>
-          } />
+            {/* Doctor Routes */}
+            <Route path="/doctor" element={
+              <ProtectedRoute allowedRoles={['doctor']}>
+                <DoctorDashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/doctor/consultation/:id" element={
+              <ProtectedRoute allowedRoles={['doctor']}>
+                <ConsultationFlow />
+              </ProtectedRoute>
+            } />
+            <Route path="/doctor/consultations-history" element={
+              <ProtectedRoute allowedRoles={['doctor']}>
+                <ConsultationsHistory />
+              </ProtectedRoute>
+            } />
 
-          {/* Receptionist Routes */}
-          <Route path="/receptionist" element={
-            <ProtectedRoute allowedRoles={['receptionist']}>
-              <ReceptionDashboard />
-            </ProtectedRoute>
-          } />
+            {/* Receptionist Routes */}
+            <Route path="/receptionist" element={
+              <ProtectedRoute allowedRoles={['receptionist']}>
+                <ReceptionDashboard />
+              </ProtectedRoute>
+            } />
 
-          {/* Shared / Specific Sub-pages */}
-          <Route path="/admin/doctors" element={<ProtectedRoute allowedRoles={['admin']}><Doctors /></ProtectedRoute>} />
-          <Route path="/doctor/patients" element={<ProtectedRoute allowedRoles={['doctor']}><Patients /></ProtectedRoute>} />
-          <Route path="/doctor/appointments" element={<ProtectedRoute allowedRoles={['doctor']}><Appointments /></ProtectedRoute>} />
-          <Route path="/receptionist/patients" element={<ProtectedRoute allowedRoles={['receptionist']}><Patients /></ProtectedRoute>} />
-          <Route path="/receptionist/calendar" element={<ProtectedRoute allowedRoles={['receptionist']}><Appointments /></ProtectedRoute>} />
-          <Route path="/patient/records" element={<ProtectedRoute allowedRoles={['patient']}><Records /></ProtectedRoute>} />
-          <Route path="/patient/appointments" element={<ProtectedRoute allowedRoles={['patient']}><Appointments /></ProtectedRoute>} />
+            {/* Shared / Specific Sub-pages */}
+            <Route path="/admin/doctors" element={<ProtectedRoute allowedRoles={['admin']}><Doctors /></ProtectedRoute>} />
+            <Route path="/admin/receptionists" element={<ProtectedRoute allowedRoles={['admin']}><Receptionists /></ProtectedRoute>} />
+            <Route path="/doctor/patients" element={<ProtectedRoute allowedRoles={['doctor']}><Patients /></ProtectedRoute>} />
+            <Route path="/doctor/appointments" element={<ProtectedRoute allowedRoles={['doctor']}><Appointments /></ProtectedRoute>} />
+            <Route path="/receptionist/patients" element={<ProtectedRoute allowedRoles={['receptionist']}><Patients /></ProtectedRoute>} />
+            <Route path="/receptionist/calendar" element={<ProtectedRoute allowedRoles={['receptionist']}><Appointments /></ProtectedRoute>} />
+            <Route path="/patient/records" element={<ProtectedRoute allowedRoles={['patient']}><Records /></ProtectedRoute>} />
+            <Route path="/patient/appointments" element={<ProtectedRoute allowedRoles={['patient']}><Appointments /></ProtectedRoute>} />
 
-          {/* Settings Routes */}
-          <Route path="/doctor/settings" element={<ProtectedRoute allowedRoles={['doctor']}><Settings /></ProtectedRoute>} />
-          <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={['admin']}><Settings /></ProtectedRoute>} />
-          <Route path="/receptionist/settings" element={<ProtectedRoute allowedRoles={['receptionist']}><Settings /></ProtectedRoute>} />
+            {/* Settings Routes */}
+            <Route path="/doctor/settings" element={<ProtectedRoute allowedRoles={['doctor']}><Settings /></ProtectedRoute>} />
+            <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={['admin']}><Settings /></ProtectedRoute>} />
+            <Route path="/receptionist/settings" element={<ProtectedRoute allowedRoles={['receptionist']}><Settings /></ProtectedRoute>} />
 
-          {/* Patient Routes */}
-          <Route path="/patient" element={
-            <ProtectedRoute allowedRoles={['patient']}>
-              <PatientDashboard />
-            </ProtectedRoute>
-          } />
+            {/* Patient Routes */}
+            <Route path="/patient" element={
+              <ProtectedRoute allowedRoles={['patient']}>
+                <PatientDashboard />
+              </ProtectedRoute>
+            } />
 
-          {/* Catch-all */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+            {/* Catch-all */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+        </ClinicProvider>
+      </AuthProvider>
     </DataProvider>
   );
 }

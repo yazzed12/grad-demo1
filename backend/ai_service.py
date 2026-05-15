@@ -14,7 +14,7 @@ BASE_URL = "http://localhost:11434"
 def _get_llm(temperature=0.2):
     return ChatOllama(model=MODEL_NAME, base_url=BASE_URL, temperature=temperature, num_predict=1024)
 
-def generate_clinical_report(data: dict) -> str:
+async def generate_clinical_report(data: dict) -> str:
     """Generate a structured dental clinical report from consultation data."""
     try:
         llm = _get_llm(temperature=0.2)
@@ -66,7 +66,7 @@ Rules:
 - Missing teeth: {', '.join(missing_teeth) if missing_teeth else 'None'}"""
 
         messages = [SystemMessage(content=system_prompt), HumanMessage(content=human_prompt)]
-        response = llm.invoke(messages)
+        response = await llm.ainvoke(messages)
         return response.content
         
     except Exception as e:
@@ -74,7 +74,7 @@ Rules:
         raise Exception(f"Failed to generate report: {str(e)}")
 
 
-def humanize_report(medical_report: str, patient_name: str = "Patient") -> str:
+async def humanize_report(medical_report: str, patient_name: str = "Patient") -> str:
     """Convert a medical dental report into patient-friendly language."""
     try:
         llm = _get_llm(temperature=0.4)
@@ -100,7 +100,7 @@ Rules:
 Write the simplified version now:"""
 
         messages = [SystemMessage(content=system_prompt), HumanMessage(content=human_prompt)]
-        response = llm.invoke(messages)
+        response = await llm.ainvoke(messages)
         return response.content
         
     except Exception as e:

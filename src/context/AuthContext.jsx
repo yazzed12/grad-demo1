@@ -14,7 +14,14 @@ export function AuthProvider({ children }) {
       });
       if (!response.ok) throw new Error('Token invalid or expired');
       const me = await response.json();
-      setUser({ name: me.full_name, role: me.role, id: me.id, email: me.email });
+      setUser({ 
+        name: me.full_name, 
+        role: me.role, 
+        id: me.id, 
+        email: me.email,
+        phone: me.phone,
+        specialization: me.specialization
+      });
       return true;
     } catch (err) {
       console.error("Auth persistence error:", err);
@@ -35,13 +42,14 @@ export function AuthProvider({ children }) {
 
   const login = async (role, username = 'doctor1', password = 'password123') => {
     try {
-      const formData = new FormData();
-      formData.append('username', username);
-      formData.append('password', password);
+      const params = new URLSearchParams();
+      params.append('username', username);
+      params.append('password', password);
 
       const response = await fetch('http://localhost:8000/api/auth/login', {
         method: 'POST',
-        body: formData
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params
       });
 
       if (!response.ok) throw new Error('Login failed');

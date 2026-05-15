@@ -7,6 +7,7 @@ import {
   Search, Plus, Calendar, Clock, MapPin, User,
   X, ChevronLeft, ChevronRight, Eye, Edit3
 } from 'lucide-react';
+import AddModal from '../components/appointments/AddModal';
 
 const STATUS_CLASS = {
   Confirmed: 'badge badge-success', Scheduled: 'badge badge-primary',
@@ -19,67 +20,6 @@ const TYPE_CLASS = {
   'Therapy': 'badge badge-purple', 'Surgery Prep': 'badge badge-warning',
 };
 
-/* ── Add Modal (preserved) ─────────────────────────────────── */
-function AddModal({ onClose }) {
-  const { addAppointment, doctors, patients } = useData();
-  const [formData, setFormData] = useState({
-    patient: patients[0]?.name || '', doctor: doctors[0]?.name || '',
-    date: new Date().toISOString().split('T')[0], time: '09:00',
-    type: 'Consultation', room: '', notes: ''
-  });
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    addAppointment({ ...formData, status: 'Pending' });
-    onClose();
-  };
-  return (
-    <div className="modal-overlay" onClick={onClose} style={{ position:'fixed',inset:0,zIndex:99999,display:'flex',alignItems:'center',justifyContent:'center',padding:20,backgroundColor:'rgba(0,0,0,0.4)',backdropFilter:'blur(2px)' }}>
-      <form className="card animate-fadeIn" onClick={e=>e.stopPropagation()} style={{ maxWidth:480,width:'100%',borderRadius:16,padding:0,overflow:'hidden' }} onSubmit={handleSubmit}>
-        <div style={{ padding:20,borderBottom:'1px solid var(--clr-border)',display:'flex',alignItems:'center',justifyContent:'space-between' }}>
-          <div style={{ display:'flex',alignItems:'center',gap:12 }}>
-            <div style={{ background:'var(--clr-primary-light)',padding:10,borderRadius:10,color:'var(--clr-primary)' }}><Calendar size={18}/></div>
-            <div><h2 style={{ margin:0,fontSize:'1.1rem',fontWeight:700 }}>New Appointment</h2><p style={{ margin:0,fontSize:'0.78rem',color:'var(--clr-subtext)' }}>Schedule a visit</p></div>
-          </div>
-          <button type="button" onClick={onClose} style={{ background:'none',border:'none',cursor:'pointer',color:'var(--clr-subtext)' }}><X size={16}/></button>
-        </div>
-        <div style={{ display:'flex',flexDirection:'column',gap:14,padding:20 }}>
-          <div className="form-group"><label className="form-label">Patient</label>
-            <select className="form-select" required style={{ width:'100%' }} value={formData.patient} onChange={e=>setFormData({...formData,patient:e.target.value})}>
-              {patients.map(p=><option key={p.id} value={p.name}>{p.name}</option>)}
-            </select>
-          </div>
-          <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:12 }}>
-            <div className="form-group"><label className="form-label">Doctor</label>
-              <select className="form-select" style={{ width:'100%' }} value={formData.doctor} onChange={e=>setFormData({...formData,doctor:e.target.value})}>
-                {doctors.map(d=><option key={d.id}>{d.name}</option>)}
-              </select>
-            </div>
-            <div className="form-group"><label className="form-label">Type</label>
-              <select className="form-select" style={{ width:'100%' }} value={formData.type} onChange={e=>setFormData({...formData,type:e.target.value})}>
-                {['Consultation','Follow-up','Check-up','Urgent','Therapy','Surgery Prep'].map(t=><option key={t}>{t}</option>)}
-              </select>
-            </div>
-          </div>
-          <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:12 }}>
-            <div className="form-group"><label className="form-label">Date</label>
-              <input className="form-input" type="date" style={{ width:'100%' }} value={formData.date} onChange={e=>setFormData({...formData,date:e.target.value})}/>
-            </div>
-            <div className="form-group"><label className="form-label">Time</label>
-              <input className="form-input" type="time" style={{ width:'100%' }} value={formData.time} onChange={e=>setFormData({...formData,time:e.target.value})}/>
-            </div>
-          </div>
-          <div className="form-group"><label className="form-label">Notes</label>
-            <textarea className="form-input" placeholder="Notes..." rows={2} value={formData.notes} onChange={e=>setFormData({...formData,notes:e.target.value})} style={{ resize:'vertical' }}/>
-          </div>
-        </div>
-        <div style={{ padding:'14px 20px',borderTop:'1px solid var(--clr-border)',display:'flex',gap:12,justifyContent:'flex-end' }}>
-          <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-          <button type="submit" className="btn btn-primary" style={{ display:'flex',alignItems:'center',gap:6 }}><Calendar size={14}/> Confirm</button>
-        </div>
-      </form>
-    </div>
-  );
-}
 
 /* ── Mini Calendar ─────────────────────────────────────────── */
 function MiniCalendar({ selectedDate, onSelect }) {
@@ -179,7 +119,7 @@ export default function Appointments() {
   const clearFilters = () => { setSearch(''); setStatusFilter('All'); setSelectedDate(''); };
 
   return (
-    <Layout pageTitle="Appointments" pageSubtitle={`${filtered.length} appointment${filtered.length!==1?'s':''} shown`}>
+    <Layout pageTitle="Appointments" pageSubtitle={`${filtered.length} Appointment${filtered.length !== 1 ? 's' : ''}`}>
 
       {/* Summary Strip */}
       <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:14,marginBottom:20 }}>

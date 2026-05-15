@@ -9,8 +9,9 @@ const translations = {
     calendar: 'Calendar',
     settings: 'Settings',
     account: 'Account',
-    clinicName: 'Smart Clinic',
-    clinicSub: 'AI-Powered System',
+    clinicName: 'Smart Dental Clinic',
+    clinicSub: 'AI-Powered Dental Management System',
+    consultationHistory: 'Consultation History',
 
     // Topbar
     searchPlaceholder: 'Search patients, appointments, doctors...',
@@ -96,6 +97,7 @@ const translations = {
     account: 'الحساب',
     clinicName: 'العيادة الذكية',
     clinicSub: 'نظام مدعوم بالذكاء الاصطناعي',
+    consultationHistory: 'سجل الاستشارات',
 
     // Topbar
     searchPlaceholder: 'ابحث عن المرضى، المواعيد، الأطباء...',

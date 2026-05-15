@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 import json
 import time
 from datetime import date, datetime, timedelta
+from sqlalchemy import Column, Integer, String, DateTime, Date, ForeignKey, Text, func
 import logging
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -13,11 +14,9 @@ from typing import List, Optional
 
 import sys
 import os
-from google import genai
-from dotenv import load_dotenv
+from langchain_ollama import ChatOllama
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from ai_service import generate_clinical_report, humanize_report as humanize_report_ai
-
-load_dotenv()
 
 # Ensure the backend directory is in the python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -88,6 +87,48 @@ class UserProfile(BaseModel):
     role: str
     full_name: Optional[str]
     email: Optional[str]
+    phone: Optional[str] = None
+    specialization: Optional[str] = None
+
+class UserProfileUpdate(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    specialization: Optional[str] = None
+    password: Optional[str] = None
+
+class ClinicSettingsBase(BaseModel):
+    name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    working_hours: Optional[str] = None
+    appointment_duration: int = 30
+    services: Optional[str] = None
+    notification_settings: Optional[str] = None
+
+class ClinicSettingsResponse(ClinicSettingsBase):
+    id: int
+
+
+class UserCreate(BaseModel):
+    username: str
+    password: str
+    full_name: str
+    email: str
+    role: str # doctor or receptionist
+    phone: Optional[str] = None
+    specialization: Optional[str] = None
+
+class UserStaffUpdate(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    specialization: Optional[str] = None
+    role: Optional[str] = None
+    is_active: Optional[int] = None
+    password: Optional[str] = None
+
 
 class PatientCreate(BaseModel):
     name: str
@@ -97,6 +138,16 @@ class PatientCreate(BaseModel):
     status: Optional[str] = "Active"
     condition: Optional[str] = "Routine Checkup"
     last_visit: Optional[str] = None
+    blood_type: Optional[str] = "Unknown"
+
+class PatientUpdate(BaseModel):
+    name: Optional[str] = None
+    age: Optional[int] = None
+    phone: Optional[str] = None
+    gender: Optional[str] = None
+    status: Optional[str] = None
+    condition: Optional[str] = None
+    blood_type: Optional[str] = None
 
 class AppointmentCreate(BaseModel):
     patient_id: int
@@ -147,6 +198,16 @@ class NotificationResponse(BaseModel):
     body: str
     type: str
     read: bool
+    created_at: datetime
+
+class SymptomCreate(BaseModel):
+    name: str
+
+class SymptomResponse(BaseModel):
+    id: int
+    name: str
+    created_by: Optional[int]
+    is_active: int
     created_at: datetime
 
 # ── Helper Functions ────────────────────────────────────────────────────────
@@ -203,6 +264,13 @@ def require_role(role: str):
         return user
     return role_checker
 
+def require_staff_role():
+    def role_checker(user: models.User = Depends(get_current_user)):
+        if user.role not in ['doctor', 'receptionist', 'admin']:
+            raise HTTPException(status_code=403, detail="Insufficient permissions")
+        return user
+    return role_checker
+
 def bootstrap_default_users():
     """
     Ensure demo users exist for local/dev login flows.
@@ -217,7 +285,7 @@ def bootstrap_default_users():
             models.User(
                 username="doctor1",
                 hashed_password=pwd_context.hash("password123"),
-                full_name="Dr. Sarah Mitchell",
+                full_name="DR Yehia El-ameir",
                 email="sarah.m@smartclinic.com",
                 role="doctor"
             ),
@@ -248,7 +316,23 @@ def bootstrap_default_users():
             ]
             db.add_all(initial_notifications)
             db.commit()
-        logger.info("Bootstrapped default demo users.")
+            
+        # Seed default clinic settings
+        if db.query(models.ClinicSettings).count() == 0:
+            default_settings = models.ClinicSettings(
+                name="Smart Dental Clinic",
+                email="admin@smartclinic.com",
+                phone="+1 555-9000",
+                address="1200 Health Blvd, Suite 400, New York, NY 10001",
+                working_hours="09:00 - 17:00",
+                appointment_duration=30,
+                services='["Consultation", "Cleaning", "Root Canal", "Extraction"]',
+                notification_settings='{"appointmentReminders": true, "criticalAlerts": true, "emailReports": false}'
+            )
+            db.add(default_settings)
+            db.commit()
+
+        logger.info("Bootstrapped default demo users and settings.")
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to bootstrap default users: {e}")
@@ -279,7 +363,9 @@ def get_me(user: models.User = Depends(get_current_user)):
         "username": user.username, 
         "role": user.role, 
         "full_name": user.full_name,
-        "email": user.email
+        "email": user.email,
+        "phone": user.phone,
+        "specialization": user.specialization
     }
 
 # ── Dashboard & Stats ───────────────────────────────────────────────────────
@@ -364,18 +450,49 @@ def mark_notification_read(notification_id: int, db: Session = Depends(get_db)):
 @app.get("/api/patients")
 def get_patients(db: Session = Depends(get_db)):
     patients = db.query(models.Patient).all()
-    return [{"id": p.id, "name": p.name, "age": p.age, "phone": p.phone, "gender": p.gender, "status": p.status, "condition": p.condition, "lastVisit": p.last_visit} for p in patients]
+    return [{"id": p.id, "name": p.name, "age": p.age, "phone": p.phone, "gender": p.gender, "status": p.status, "condition": p.condition, "lastVisit": p.last_visit, "bloodType": p.blood_type} for p in patients]
 
 @app.post("/api/patients")
-def create_patient(payload: PatientCreate, db: Session = Depends(get_db), user: models.User = Depends(require_role('doctor'))):
+def create_patient(payload: PatientCreate, db: Session = Depends(get_db), user: models.User = Depends(require_staff_role())):
     new_patient = models.Patient(**payload.dict())
     db.add(new_patient)
     db.commit()
     db.refresh(new_patient)
-    return {"id": new_patient.id, "name": new_patient.name, "age": new_patient.age, "phone": new_patient.phone, "gender": new_patient.gender, "status": new_patient.status, "condition": new_patient.condition, "lastVisit": new_patient.last_visit}
+    return {"id": new_patient.id, "name": new_patient.name, "age": new_patient.age, "phone": new_patient.phone, "gender": new_patient.gender, "status": new_patient.status, "condition": new_patient.condition, "lastVisit": new_patient.last_visit, "bloodType": new_patient.blood_type}
+
+@app.put("/api/patients/{patient_id}")
+def update_patient(patient_id: int, payload: PatientUpdate, db: Session = Depends(get_db), user: models.User = Depends(require_staff_role())):
+    patient = db.query(models.Patient).filter(models.Patient.id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    
+    update_data = payload.dict(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(patient, key, value)
+        
+    db.commit()
+    db.refresh(patient)
+    return {"status": "success", "patient": {"id": patient.id, "name": patient.name, "age": patient.age, "phone": patient.phone, "gender": patient.gender, "status": patient.status, "condition": patient.condition, "bloodType": patient.blood_type}}
+
+@app.get("/api/patients/{patient_id}")
+def get_patient(patient_id: int, db: Session = Depends(get_db)):
+    patient = db.query(models.Patient).filter(models.Patient.id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return {
+        "id": patient.id,
+        "name": patient.name,
+        "age": patient.age,
+        "phone": patient.phone,
+        "gender": patient.gender,
+        "status": patient.status,
+        "condition": patient.condition,
+        "bloodType": patient.blood_type,
+        "lastVisit": patient.last_visit
+    }
 
 @app.delete("/api/patients/{patient_id}")
-def delete_patient(patient_id: int, db: Session = Depends(get_db), user: models.User = Depends(require_role('doctor'))):
+def delete_patient(patient_id: int, db: Session = Depends(get_db), user: models.User = Depends(require_staff_role())):
     patient = db.query(models.Patient).filter(models.Patient.id == patient_id).first()
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
@@ -397,7 +514,7 @@ def get_appointments(db: Session = Depends(get_db)):
     } for a in appointments]
 
 @app.post("/api/appointments")
-def create_appointment(payload: AppointmentCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db), user: models.User = Depends(require_role('doctor'))):
+def create_appointment(payload: AppointmentCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db), user: models.User = Depends(require_staff_role())):
     try:
         appt_date = date.fromisoformat(payload.date)
     except ValueError:
@@ -429,19 +546,36 @@ def create_appointment(payload: AppointmentCreate, background_tasks: BackgroundT
     }
 
 @app.put("/api/appointments/{appointment_id}/status")
-def update_appointment_status(appointment_id: int, status_update: dict, db: Session = Depends(get_db), user: models.User = Depends(require_role('doctor'))):
+def update_appointment_status(appointment_id: int, status_update: dict, db: Session = Depends(get_db), user: models.User = Depends(require_staff_role())):
     appt = db.query(models.Appointment).filter(models.Appointment.id == appointment_id).first()
     if not appt:
         raise HTTPException(status_code=404, detail="Appointment not found")
     new_status = status_update.get("status")
     if new_status:
+        old_status = appt.status
         appt.status = new_status
+        
+        # Notify Doctor if patient arrived
+        if new_status.lower() == "arrived" and old_status.lower() != "arrived":
+            patient_name = appt.patient.name if appt.patient else "A patient"
+            # Find the assigned doctor for this appointment
+            # In your schema, doctor_id isn't directly on Appointment, 
+            # but we can look for ClinicalReports or just notify based on system logic.
+            # However, for this task, we will create a general notification or target clinical staff.
+            notification = models.Notification(
+                title="Patient Arrived",
+                body=f"{patient_name} has arrived for their {appt.time} appointment.",
+                type="success",
+                read=0
+            )
+            db.add(notification)
+            
         db.commit()
         db.refresh(appt)
     return {"status": "success", "new_status": appt.status}
 
 @app.put("/api/appointments/{appointment_id}")
-def update_appointment(appointment_id: int, payload: dict, db: Session = Depends(get_db), user: models.User = Depends(require_role('doctor'))):
+def update_appointment(appointment_id: int, payload: dict, db: Session = Depends(get_db), user: models.User = Depends(require_staff_role())):
     appt = db.query(models.Appointment).filter(models.Appointment.id == appointment_id).first()
     if not appt:
         raise HTTPException(status_code=404, detail="Appointment not found")
@@ -476,7 +610,7 @@ def update_appointment(appointment_id: int, payload: dict, db: Session = Depends
         "notes": getattr(appt, 'notes', '')
     }
 @app.delete("/api/appointments/{appointment_id}")
-def delete_appointment(appointment_id: int, db: Session = Depends(get_db), user: models.User = Depends(require_role('doctor'))):
+def delete_appointment(appointment_id: int, db: Session = Depends(get_db), user: models.User = Depends(require_staff_role())):
     appt = db.query(models.Appointment).filter(models.Appointment.id == appointment_id).first()
     if not appt:
         raise HTTPException(status_code=404, detail="Appointment not found")
@@ -500,17 +634,96 @@ def get_records(db: Session = Depends(get_db)):
     } for r in records]
 
 @app.get("/api/doctors")
-def get_doctors(db: Session = Depends(get_db)):
-    doctors = db.query(models.User).filter(models.User.role == "doctor").all()
+def get_doctors(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    doctors = db.query(models.User).filter(models.User.role == "doctor", models.User.is_active == 1).all()
+    
+    # Calculate patient counts from ClinicalReport records
+    counts = db.query(
+        models.ClinicalReport.doctor_id, 
+        func.count(func.distinct(models.ClinicalReport.patient_id)).label('count')
+    ).group_by(models.ClinicalReport.doctor_id).all()
+    
+    counts_map = {c.doctor_id: c.count for c in counts}
+    
     return [{
         "id": d.id,
         "name": d.full_name or d.username,
         "username": d.username,
         "role": d.role,
+        "email": d.email,
+        "phone": d.phone,
+        "specialization": d.specialization,
         "status": "online",
-        "rating": 5.0,
-        "patients": 0
+        "patients": counts_map.get(d.id, 0)
     } for d in doctors]
+
+@app.get("/api/receptionists")
+def get_receptionists(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    receptionists = db.query(models.User).filter(models.User.role == "receptionist", models.User.is_active == 1).all()
+    return [{
+        "id": r.id,
+        "name": r.full_name or r.username,
+        "username": r.username,
+        "role": r.role,
+        "email": r.email,
+        "phone": r.phone,
+        "status": "online"
+    } for r in receptionists]
+
+@app.post("/api/staff")
+def create_staff(payload: UserCreate, db: Session = Depends(get_db), user: models.User = Depends(require_role('admin'))):
+    if payload.role not in ["doctor", "receptionist"]:
+        raise HTTPException(status_code=400, detail="Invalid role. Must be doctor or receptionist.")
+    
+    existing = db.query(models.User).filter((models.User.username == payload.username) | (models.User.email == payload.email)).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Username or Email already exists")
+    
+    new_user = models.User(
+        username=payload.username,
+        hashed_password=pwd_context.hash(payload.password),
+        full_name=payload.full_name,
+        email=payload.email,
+        role=payload.role,
+        phone=payload.phone,
+        specialization=payload.specialization if payload.role == "doctor" else None,
+        is_active=1
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return {"status": "success", "id": new_user.id}
+
+@app.put("/api/staff/{user_id}")
+def update_staff(user_id: int, payload: UserStaffUpdate, db: Session = Depends(get_db), user: models.User = Depends(require_role('admin'))):
+    target = db.query(models.User).filter(models.User.id == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Staff member not found")
+    
+    if payload.full_name is not None: target.full_name = payload.full_name
+    if payload.email is not None: target.email = payload.email
+    if payload.phone is not None: target.phone = payload.phone
+    if payload.role is not None: target.role = payload.role
+    if payload.is_active is not None: target.is_active = payload.is_active
+    
+    if payload.password is not None and payload.password.strip() != "":
+        target.hashed_password = pwd_context.hash(payload.password)
+    
+    if payload.specialization is not None:
+        target.specialization = payload.specialization if target.role == "doctor" else None
+    
+    db.commit()
+    return {"status": "success"}
+
+@app.delete("/api/staff/{user_id}")
+def delete_staff(user_id: int, db: Session = Depends(get_db), user: models.User = Depends(require_role('admin'))):
+    target = db.query(models.User).filter(models.User.id == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Staff member not found")
+    
+    target.is_active = 0
+    db.commit()
+    return {"status": "success"}
 
 # ── Clinical Endpoints ──────────────────────────────────────────────────────
 @app.get("/api/consultations/{patient_id}")
@@ -591,24 +804,24 @@ def finish_appointment(appointment_id: int, db: Session = Depends(get_db), user:
 
 # ── Clinical Reports (AI + CRUD) ────────────────────────────────────────────
 @app.post("/api/ai/generate-report")
-def ai_generate_report(payload: dict, db: Session = Depends(get_db), user: models.User = Depends(require_role('doctor'))):
+async def ai_generate_report(payload: dict, db: Session = Depends(get_db), user: models.User = Depends(require_role('doctor'))):
     """Generate AI clinical report from consultation data via LangChain + Ollama."""
     try:
-        report_text = generate_clinical_report(payload)
+        report_text = await generate_clinical_report(payload)
         return {"status": "success", "report": report_text}
     except Exception as e:
         logger.error(f"AI Report Generation Error: {e}")
         raise HTTPException(status_code=500, detail=f"AI report generation failed: {str(e)}")
 
 @app.post("/api/ai/humanize-report")
-def ai_humanize_report(payload: dict, db: Session = Depends(get_db), user: models.User = Depends(require_role('doctor'))):
+async def ai_humanize_report(payload: dict, db: Session = Depends(get_db), user: models.User = Depends(require_role('doctor'))):
     """Convert medical report to patient-friendly language via LangChain + Ollama."""
     medical_report = payload.get("report", "")
     patient_name = payload.get("patient_name", "Patient")
     if not medical_report:
         raise HTTPException(status_code=400, detail="Report text is required")
     try:
-        humanized = humanize_report_ai(medical_report, patient_name)
+        humanized = await humanize_report_ai(medical_report, patient_name)
         return {"status": "success", "humanized_report": humanized}
     except Exception as e:
         logger.error(f"Report Humanization Error: {e}")
@@ -656,12 +869,40 @@ def get_patient_reports(patient_id: int, db: Session = Depends(get_db)):
         "doctor": r.doctor.full_name or r.doctor.username if r.doctor else "Unknown"
     } for r in reports]
 
+@app.get("/api/doctor/consultations/history")
+def get_doctor_consultations_history(db: Session = Depends(get_db), user: models.User = Depends(require_role('doctor'))):
+    """Get consultation history for the logged-in doctor."""
+    reports = db.query(models.ClinicalReport).options(joinedload(models.ClinicalReport.patient)).filter(
+        models.ClinicalReport.doctor_id == user.id
+    ).order_by(models.ClinicalReport.created_at.desc()).all()
+    
+    return [{
+        "id": r.id,
+        "patient_id": r.patient_id,
+        "patient_name": r.patient.name if r.patient else "Unknown",
+        "doctor_id": r.doctor_id,
+        "tooth_id": r.tooth_id,
+        "tooth_status": r.tooth_status,
+        "symptoms": json.loads(r.symptoms) if r.symptoms else [],
+        "doctor_notes": r.doctor_notes,
+        "ai_draft_report": r.ai_draft_report,
+        "final_medical_report": r.final_medical_report,
+        "humanized_report": r.humanized_report,
+        "status": r.status,
+        "created_at": str(r.created_at),
+        "updated_at": str(r.updated_at)
+    } for r in reports]
+
 @app.put("/api/reports/{report_id}")
 def update_report(report_id: int, payload: dict, db: Session = Depends(get_db), user: models.User = Depends(require_role('doctor'))):
     """Update an existing clinical report."""
     report = db.query(models.ClinicalReport).filter(models.ClinicalReport.id == report_id).first()
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
+    
+    if report.doctor_id != user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to edit this report")
+
     for field in ["final_medical_report", "humanized_report", "status", "doctor_notes", "tooth_id", "tooth_status", "symptoms"]:
         if field in payload:
             val = json.dumps(payload[field]) if field == "symptoms" and isinstance(payload[field], list) else payload[field]
@@ -670,12 +911,20 @@ def update_report(report_id: int, payload: dict, db: Session = Depends(get_db), 
     db.refresh(report)
     return {"id": report.id, "status": report.status, "updated_at": str(report.updated_at)}
 
+# ── AI Configuration ─────────────────────────────────────────────────────────
+OLLAMA_MODEL = "mistral:latest"
+OLLAMA_BASE_URL = "http://localhost:11434"
+
+def _get_ollama(temperature=0.2, format=None):
+    return ChatOllama(model=OLLAMA_MODEL, base_url=OLLAMA_BASE_URL, temperature=temperature, num_predict=1024, format=format)
+
 # ── AI Endpoints ────────────────────────────────────────────────────────────
 @app.get("/api/ai/insights", response_model=InsightResponse)
-def get_ai_insights(db: Session = Depends(get_db)):
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="AI Not Configured")
+async def get_ai_insights(db: Session = Depends(get_db)):
+    total_patients = 0
+    today_appts = []
+    completed = 0
+    pending = 0
 
     try:
         # 1. Aggregate stats
@@ -698,22 +947,30 @@ def get_ai_insights(db: Session = Depends(get_db)):
             "recent_treatments": treatments[:5]
         }
 
-        # 2. Call Gemini
-        client = genai.Client(api_key=api_key)
-        prompt = f"Analyze these clinic stats and provide a structured JSON response with 'summary' and 'recommendations' (list of 3). Stats: {json.dumps(stats_context)}. Tone: Professional, operational, helpful."
+        # 2. Call Ollama via LangChain
+        llm = _get_ollama(temperature=0.2, format="json")
         
-        response = client.models.generate_content(
-            model='gemini-1.5-flash',
-            contents=prompt,
-            config=genai.types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=InsightResponse,
-                temperature=0.2
-            )
-        )
+        system_prompt = """You are a dental clinic analytics assistant. Analyze the provided clinic statistics and return a valid JSON object with exactly these keys:
+- "summary": a short professional summary string
+- "stats": an object with keys "patients" (int), "today_appointments" (int), "completed" (int), "pending" (int)
+- "recommendations": an array of exactly 3 short recommendation strings
+
+Return ONLY valid JSON, no markdown, no explanation."""
         
-        # Handle potential parsing issues by returning the parsed JSON directly if it matches the schema
-        return response.parsed
+        human_prompt = f"Analyze these clinic stats: {json.dumps(stats_context)}. Tone: Professional, operational, helpful."
+        
+        messages = [SystemMessage(content=system_prompt), HumanMessage(content=human_prompt)]
+        response = await llm.ainvoke(messages)
+        
+        # Parse the JSON response
+        raw = response.content.strip()
+        if raw.startswith("```"):
+            lines = raw.strip("`").strip().split('\n')
+            if lines[0].lower() == "json":
+                lines = lines[1:]
+            raw = '\n'.join(lines).strip()
+        result = json.loads(raw)
+        return result
 
     except Exception as e:
         logger.error(f"AI Insights Error: {e}")
@@ -721,29 +978,35 @@ def get_ai_insights(db: Session = Depends(get_db)):
         return {
             "summary": "Clinic is operating normally. Continue monitoring pending appointments.",
             "stats": {"patients": total_patients, "today_appointments": len(today_appts), "completed": completed, "pending": pending},
-            "recommendations": ["Optimize scheduling for pending slots", "Review recent treatment logs"]
+            "recommendations": ["Optimize scheduling for pending slots", "Review recent treatment logs", "Ensure all patient records are up to date"]
         }
 
 @app.post("/api/ai/diagnosis", response_model=DiagnosisResponse)
-def ai_diagnosis(payload: DiagnosisRequest):
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="AI Not Configured")
-
+async def ai_diagnosis(payload: DiagnosisRequest):
     try:
-        client = genai.Client(api_key=api_key)
-        prompt = f"Perform a dental clinical diagnosis based on: Symptoms: {payload.symptoms}. History: {payload.history}. Tooth Data: {json.dumps(payload.tooth_data)}. Return JSON with 'diagnosis', 'conditions' (list), and 'treatment_plan' (list)."
+        llm = _get_ollama(temperature=0.1, format="json")
         
-        response = client.models.generate_content(
-            model='gemini-1.5-flash',
-            contents=prompt,
-            config=genai.types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=DiagnosisResponse,
-                temperature=0.1
-            )
-        )
-        return response.parsed
+        system_prompt = """You are an experienced dental clinician assistant. Analyze the provided patient symptoms, history, and tooth data to produce a clinical assessment.
+Return a valid JSON object with exactly these keys:
+- "diagnosis": a detailed diagnosis string
+- "conditions": an array of identified condition strings
+- "treatment_plan": an array of recommended treatment steps
+
+Return ONLY valid JSON, no markdown, no explanation."""
+        
+        human_prompt = f"Perform a dental clinical diagnosis based on: Symptoms: {payload.symptoms}. History: {payload.history}. Tooth Data: {json.dumps(payload.tooth_data)}."
+        
+        messages = [SystemMessage(content=system_prompt), HumanMessage(content=human_prompt)]
+        response = await llm.ainvoke(messages)
+        
+        raw = response.content.strip()
+        if raw.startswith("```"):
+            lines = raw.strip("`").strip().split('\n')
+            if lines[0].lower() == "json":
+                lines = lines[1:]
+            raw = '\n'.join(lines).strip()
+        result = json.loads(raw)
+        return result
     except Exception as e:
         logger.error(f"AI Diagnosis Error: {e}")
         return {
@@ -753,11 +1016,7 @@ def ai_diagnosis(payload: DiagnosisRequest):
         }
 
 @app.post("/api/ai/chat")
-def ai_chat(request: ChatRequest, db: Session = Depends(get_db)):
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="AI Assistant is not configured. Missing GEMINI_API_KEY.")
-    
+async def ai_chat(request: ChatRequest, db: Session = Depends(get_db)):
     try:
         # Fetch rich clinic context
         total_patients = db.query(models.Patient).count()
@@ -777,23 +1036,19 @@ def ai_chat(request: ChatRequest, db: Session = Depends(get_db)):
             f"Keep responses operational, helpful, and short."
         )
         
-        client = genai.Client(api_key=api_key)
+        llm = _get_ollama(temperature=0.7)
         
-        contents = []
+        # Build message chain with system context
+        messages = [SystemMessage(content=system_instruction)]
         for m in request.messages:
-            role = 'model' if m.role == 'ai' else 'user'
-            contents.append(genai.types.Content(role=role, parts=[genai.types.Part.from_text(m.text)]))
-            
-        response = client.models.generate_content(
-            model='gemini-1.5-flash',
-            contents=contents,
-            config=genai.types.GenerateContentConfig(
-                system_instruction=system_instruction,
-                temperature=0.7
-            )
-        )
+            if m.role == 'ai':
+                messages.append(AIMessage(content=m.text))
+            else:
+                messages.append(HumanMessage(content=m.text))
+        
+        response = await llm.ainvoke(messages)
         logger.info(f"AI Chat Action: Processed message with context. Status: OK")
-        return {"response": response.text}
+        return {"response": response.content}
     except Exception as e:
         logger.error(f"AI Chat Error: {e}")
         raise HTTPException(status_code=500, detail="Failed to generate AI response")
@@ -801,3 +1056,105 @@ def ai_chat(request: ChatRequest, db: Session = Depends(get_db)):
 @app.get("/")
 def health_check():
     return {"status": "operational", "version": "2.0.0-enterprise"}
+
+# ── Settings Endpoints ───────────────────────────────────────────────────────
+@app.get("/api/settings/clinic", response_model=ClinicSettingsResponse)
+def get_clinic_settings(db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    if user.role not in ["admin", "doctor"]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    settings = db.query(models.ClinicSettings).first()
+    if not settings:
+        raise HTTPException(status_code=404, detail="Settings not found")
+    return settings
+
+@app.put("/api/settings/clinic", response_model=ClinicSettingsResponse)
+def update_clinic_settings(payload: ClinicSettingsUpdate, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    if user.role not in ["admin", "doctor"]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    settings = db.query(models.ClinicSettings).first()
+    if not settings:
+        raise HTTPException(status_code=404, detail="Settings not found")
+    
+    update_data = payload.dict(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(settings, key, value)
+    db.commit()
+    db.refresh(settings)
+    return settings
+
+@app.get("/api/settings/profile", response_model=UserProfile)
+def get_profile_settings(db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    return {
+        "id": user.id,
+        "username": user.username,
+        "role": user.role,
+        "full_name": user.full_name,
+        "email": user.email,
+        "phone": user.phone,
+        "specialization": user.specialization
+    }
+
+@app.put("/api/settings/profile", response_model=UserProfile)
+def update_profile_settings(payload: UserProfileUpdate, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    update_data = payload.dict(exclude_unset=True)
+    if "password" in update_data and update_data["password"]:
+        user.hashed_password = pwd_context.hash(update_data["password"])
+        del update_data["password"]
+    
+    for key, value in update_data.items():
+        setattr(user, key, value)
+    
+    db.commit()
+    db.refresh(user)
+    return {
+        "id": user.id,
+        "username": user.username,
+        "role": user.role,
+        "full_name": user.full_name,
+        "email": user.email,
+        "phone": user.phone,
+        "specialization": user.specialization
+    }
+
+# ── Clinical Symptoms Endpoints ──────────────────────────────────────────────
+@app.get("/api/clinical/symptoms", response_model=List[SymptomResponse])
+def get_symptoms(db: Session = Depends(get_db)):
+    symptoms = db.query(models.Symptom).filter(models.Symptom.is_active == 1).order_by(models.Symptom.name.asc()).all()
+    if not symptoms:
+        # Auto-seed default symptoms if table is empty
+        defaults = [
+            "Cold Sensitivity", "Hot Sensitivity", "Sweet Sensitivity", "Sharp Pain", 
+            "Dull Ache", "Spontaneous Pain", "Pain on Biting", "Swelling", 
+            "Bleeding Gums", "Tooth Mobility", "Visible Decay", "Fractured/Chipped", 
+            "Defective Restoration", "Halitosis (Bad Breath)"
+        ]
+        for name in defaults:
+            s = models.Symptom(name=name)
+            db.add(s)
+        db.commit()
+        symptoms = db.query(models.Symptom).filter(models.Symptom.is_active == 1).order_by(models.Symptom.name.asc()).all()
+    return symptoms
+
+@app.post("/api/clinical/symptoms", response_model=SymptomResponse)
+def create_symptom(payload: SymptomCreate, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    name_norm = payload.name.strip()
+    if not name_norm:
+        raise HTTPException(status_code=400, detail="Symptom name cannot be empty")
+    
+    existing = db.query(models.Symptom).filter(func.lower(models.Symptom.name) == name_norm.lower()).first()
+    if existing:
+        if existing.is_active == 0:
+            existing.is_active = 1
+            db.commit()
+            db.refresh(existing)
+            return existing
+        return existing
+        
+    new_symptom = models.Symptom(
+        name=name_norm,
+        created_by=user.id
+    )
+    db.add(new_symptom)
+    db.commit()
+    db.refresh(new_symptom)
+    return new_symptom

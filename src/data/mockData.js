@@ -3,7 +3,7 @@
 // =============================================
 
 export const doctors = [
-  { id: 1, name: 'Dr. Sarah Mitchell', specialty: 'Cardiologist', avatar: 'SM', status: 'online', patients: 142, rating: 4.9, experience: '12 yrs', color: '#3b82f6', schedule: 'Mon–Fri' },
+  { id: 1, name: 'DR Yehia El-ameir', specialty: 'Cardiologist', avatar: 'SM', status: 'online', patients: 142, rating: 4.9, experience: '12 yrs', color: '#3b82f6', schedule: 'Mon–Fri' },
   { id: 2, name: 'Dr. James Okafor',   specialty: 'Neurologist',   avatar: 'JO', status: 'online', patients: 98,  rating: 4.8, experience: '9 yrs',  color: '#8b5cf6', schedule: 'Tue–Sat' },
   { id: 3, name: 'Dr. Lena Fischer',   specialty: 'Dermatologist', avatar: 'LF', status: 'away',   patients: 115, rating: 4.7, experience: '7 yrs',  color: '#14b8a6', schedule: 'Mon–Thu' },
   { id: 4, name: 'Dr. Carlos Vega',    specialty: 'Orthopedist',   avatar: 'CV', status: 'offline',patients: 87,  rating: 4.6, experience: '15 yrs', color: '#f59e0b', schedule: 'Wed–Sun' },
@@ -12,25 +12,25 @@ export const doctors = [
 ];
 
 export const patients = [
-  { id: 1,  name: 'Eleanor Voss',    age: 54, gender: 'F', blood: 'A+',  phone: '+1 555-0101', doctor: 'Dr. Sarah Mitchell', condition: 'Hypertension',    status: 'Active',    lastVisit: '2026-04-18', nextVisit: '2026-04-30', avatar: 'EV' },
+  { id: 1,  name: 'Eleanor Voss',    age: 54, gender: 'F', blood: 'A+',  phone: '+1 555-0101', doctor: 'DR Yehia El-ameir', condition: 'Hypertension',    status: 'Active',    lastVisit: '2026-04-18', nextVisit: '2026-04-30', avatar: 'EV' },
   { id: 2,  name: 'Marcus Cole',     age: 38, gender: 'M', blood: 'O-',  phone: '+1 555-0102', doctor: 'Dr. James Okafor',   condition: 'Migraine',         status: 'Active',    lastVisit: '2026-04-15', nextVisit: '2026-05-08', avatar: 'MC' },
   { id: 3,  name: 'Taraji Barnes',   age: 29, gender: 'F', blood: 'B+',  phone: '+1 555-0103', doctor: 'Dr. Lena Fischer',   condition: 'Eczema',           status: 'Recovered', lastVisit: '2026-04-10', nextVisit: '—',          avatar: 'TB' },
   { id: 4,  name: 'Oliver Grant',    age: 61, gender: 'M', blood: 'AB+', phone: '+1 555-0104', doctor: 'Dr. Carlos Vega',    condition: 'Knee Arthritis',   status: 'Critical',  lastVisit: '2026-04-20', nextVisit: '2026-04-25', avatar: 'OG' },
   { id: 5,  name: 'Priya Sharma',    age: 7,  gender: 'F', blood: 'A-',  phone: '+1 555-0105', doctor: 'Dr. Amara Nwosu',    condition: 'Asthma',           status: 'Active',    lastVisit: '2026-04-12', nextVisit: '2026-05-01', avatar: 'PS' },
   { id: 6,  name: 'Leo Kowalski',    age: 45, gender: 'M', blood: 'O+',  phone: '+1 555-0106', doctor: 'Dr. Ryan Patel',     condition: 'Anxiety Disorder', status: 'Active',    lastVisit: '2026-04-16', nextVisit: '2026-04-28', avatar: 'LK' },
-  { id: 7,  name: 'Nina Johansson',  age: 33, gender: 'F', blood: 'B-',  phone: '+1 555-0107', doctor: 'Dr. Sarah Mitchell', condition: 'Arrhythmia',       status: 'Active',    lastVisit: '2026-04-19', nextVisit: '2026-05-05', avatar: 'NJ' },
+  { id: 7,  name: 'Nina Johansson',  age: 33, gender: 'F', blood: 'B-',  phone: '+1 555-0107', doctor: 'DR Yehia El-ameir', condition: 'Arrhythmia',       status: 'Active',    lastVisit: '2026-04-19', nextVisit: '2026-05-05', avatar: 'NJ' },
   { id: 8,  name: 'Kwame Asante',    age: 50, gender: 'M', blood: 'O+',  phone: '+1 555-0108', doctor: 'Dr. Carlos Vega',    condition: 'Lumbar Disc',      status: 'Critical',  lastVisit: '2026-04-21', nextVisit: '2026-04-23', avatar: 'KA' },
   { id: 9,  name: 'Sofia Reyes',     age: 22, gender: 'F', blood: 'A+',  phone: '+1 555-0109', doctor: 'Dr. Lena Fischer',   condition: 'Psoriasis',        status: 'Active',    lastVisit: '2026-04-09', nextVisit: '2026-05-12', avatar: 'SR' },
   { id: 10, name: 'David Huang',     age: 67, gender: 'M', blood: 'AB-', phone: '+1 555-0110', doctor: 'Dr. James Okafor',   condition: 'Parkinson\'s',     status: 'Active',    lastVisit: '2026-04-14', nextVisit: '2026-04-29', avatar: 'DH' },
 ];
 
 export const appointments = [
-  { id: 1,  patient: 'Eleanor Voss',   doctor: 'Dr. Sarah Mitchell', type: 'Follow-up',  date: '2026-04-23', time: '09:00 AM', status: 'Confirmed', room: 'A-101' },
+  { id: 1,  patient: 'Eleanor Voss',   doctor: 'DR Yehia El-ameir', type: 'Follow-up',  date: '2026-04-23', time: '09:00 AM', status: 'Confirmed', room: 'A-101' },
   { id: 2,  patient: 'Marcus Cole',    doctor: 'Dr. James Okafor',   type: 'Consultation',date: '2026-04-23', time: '10:30 AM', status: 'Confirmed', room: 'B-203' },
   { id: 3,  patient: 'Oliver Grant',   doctor: 'Dr. Carlos Vega',    type: 'Urgent',     date: '2026-04-23', time: '11:00 AM', status: 'Pending',   room: 'C-305' },
   { id: 4,  patient: 'Priya Sharma',   doctor: 'Dr. Amara Nwosu',    type: 'Check-up',   date: '2026-04-24', time: '08:30 AM', status: 'Confirmed', room: 'D-102' },
   { id: 5,  patient: 'Leo Kowalski',   doctor: 'Dr. Ryan Patel',     type: 'Therapy',    date: '2026-04-24', time: '02:00 PM', status: 'Confirmed', room: 'E-401' },
-  { id: 6,  patient: 'Nina Johansson', doctor: 'Dr. Sarah Mitchell', type: 'ECG Test',   date: '2026-04-25', time: '09:30 AM', status: 'Pending',   room: 'A-102' },
+  { id: 6,  patient: 'Nina Johansson', doctor: 'DR Yehia El-ameir', type: 'ECG Test',   date: '2026-04-25', time: '09:30 AM', status: 'Pending',   room: 'A-102' },
   { id: 7,  patient: 'David Huang',    doctor: 'Dr. James Okafor',   type: 'MRI Review', date: '2026-04-25', time: '11:30 AM', status: 'Confirmed', room: 'B-204' },
   { id: 8,  patient: 'Sofia Reyes',    doctor: 'Dr. Lena Fischer',   type: 'Follow-up',  date: '2026-04-26', time: '03:00 PM', status: 'Cancelled', room: 'C-201' },
   { id: 9,  patient: 'Kwame Asante',   doctor: 'Dr. Carlos Vega',    type: 'Surgery Prep',date: '2026-04-26',time: '07:00 AM', status: 'Confirmed', room: 'OR-1' },

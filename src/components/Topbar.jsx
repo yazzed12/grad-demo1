@@ -6,9 +6,8 @@ import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useData } from '../context/DataContext';
 import {
-  Search, Bell, Sun, Moon, Globe, LogOut,
-  User, Calendar, Stethoscope, FileText,
-  CheckCheck, X, Users
+  Bell, Sun, Moon, Globe, LogOut,
+  User, CheckCheck
 } from 'lucide-react';
 
 export default function Topbar({ pageTitle, pageSubtitle }) {
@@ -22,14 +21,10 @@ export default function Topbar({ pageTitle, pageSubtitle }) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isLangOpen, setIsLangOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isSearchFocused, setIsSearchFocused] = useState(false);
 
   const notificationsRef = useRef(null);
   const profileRef = useRef(null);
   const langRef = useRef(null);
-  const searchRef = useRef(null);
-  const searchInputRef = useRef(null);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -43,106 +38,12 @@ export default function Topbar({ pageTitle, pageSubtitle }) {
       if (langRef.current && !langRef.current.contains(event.target)) {
         setIsLangOpen(false);
       }
-      if (searchRef.current && !searchRef.current.contains(event.target)) {
-        setIsSearchFocused(false);
-      }
     };
     document.addEventListener('mousedown', onClickOutside);
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, []);
 
-  // Keyboard shortcut Cmd/Ctrl+K to focus search
-  useEffect(() => {
-    const onKeyDown = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        searchInputRef.current?.focus();
-      }
-      if (e.key === 'Escape') {
-        setIsSearchFocused(false);
-        searchInputRef.current?.blur();
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, []);
 
-  // Search logic
-  const searchResults = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q || q.length < 2) return [];
-
-    const results = [];
-    const limit = 5;
-
-    // Search patients
-    const matchedPatients = patients
-      .filter(p => p.name?.toLowerCase().includes(q) || p.phone?.includes(q) || p.condition?.toLowerCase().includes(q))
-      .slice(0, limit);
-    matchedPatients.forEach(p => {
-      results.push({
-        id: `patient-${p.id}`,
-        type: 'patient',
-        icon: Users,
-        title: p.name,
-        detail: p.condition || p.phone || '',
-        action: () => navigate(user?.role === 'doctor' ? '/doctor/patients' : `/${user?.role || 'doctor'}/patients`),
-      });
-    });
-
-    // Search appointments
-    const matchedAppts = appointments
-      .filter(a => a.patient?.toLowerCase().includes(q) || a.type?.toLowerCase().includes(q) || a.date?.includes(q))
-      .slice(0, limit);
-    matchedAppts.forEach(a => {
-      results.push({
-        id: `appt-${a.id}`,
-        type: 'appointment',
-        icon: Calendar,
-        title: `${a.patient || 'Unknown'} — ${a.type || 'Appointment'}`,
-        detail: `${a.date} at ${a.time} • ${a.status}`,
-        action: () => navigate(user?.role === 'doctor' ? '/doctor/appointments' : `/${user?.role || 'doctor'}/appointments`),
-      });
-    });
-
-    // Search doctors
-    const matchedDocs = doctors
-      .filter(d => d.name?.toLowerCase().includes(q) || d.username?.toLowerCase().includes(q))
-      .slice(0, limit);
-    matchedDocs.forEach(d => {
-      results.push({
-        id: `doctor-${d.id}`,
-        type: 'doctor',
-        icon: Stethoscope,
-        title: d.name,
-        detail: d.role || 'Doctor',
-        action: () => navigate('/admin/doctors'),
-      });
-    });
-
-    // Search records
-    const matchedRecords = records
-      .filter(r => r.patient?.toLowerCase().includes(q) || r.type?.toLowerCase().includes(q) || r.tooth?.toString().includes(q))
-      .slice(0, limit);
-    matchedRecords.forEach(r => {
-      results.push({
-        id: `record-${r.id}`,
-        type: 'record',
-        icon: FileText,
-        title: `${r.patient || 'Unknown'} — Tooth #${r.tooth}`,
-        detail: r.type || 'Record',
-        action: () => navigate('/patient/records'),
-      });
-    });
-
-    return results;
-  }, [searchQuery, patients, appointments, doctors, records, navigate, user]);
-
-  const handleSearchResultClick = useCallback((result) => {
-    result.action();
-    setSearchQuery('');
-    setIsSearchFocused(false);
-  }, []);
 
   const getRoleName = (role) => {
     const roleMap = { doctor: 'roleDoctor', admin: 'roleAdmin', receptionist: 'roleReceptionist', patient: 'rolePatient' };
@@ -163,6 +64,7 @@ export default function Topbar({ pageTitle, pageSubtitle }) {
 
   const userName = user?.name || 'User';
   const userRole = user?.role ? getRoleName(user.role) : 'Guest';
+  const displayRole = user?.specialization ? `${userRole} • ${user?.specialization}` : userRole;
   const userEmail = user?.email || '';
   const userInitials = userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
@@ -175,57 +77,6 @@ export default function Topbar({ pageTitle, pageSubtitle }) {
         {pageSubtitle && <p>{pageSubtitle}</p>}
       </div>
 
-      {/* Search Bar */}
-      <div className="topbar-search-wrap" ref={searchRef}>
-        <Search size={16} />
-        <input
-          ref={searchInputRef}
-          type="text"
-          className="topbar-search"
-          placeholder={t('searchPlaceholder')}
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onFocus={() => setIsSearchFocused(true)}
-        />
-        {searchQuery && (
-          <button className="search-clear-btn" onClick={() => setSearchQuery('')} title="Clear">
-            <X size={14} />
-          </button>
-        )}
-        <kbd className="search-kbd">⌘K</kbd>
-
-        {/* Search Results Dropdown */}
-        {isSearchFocused && searchQuery.length >= 2 && (
-          <div className="search-results-dropdown">
-            {searchResults.length === 0 ? (
-              <div className="search-empty">
-                <Search size={20} style={{ opacity: 0.3 }} />
-                <div className="search-empty-title">{t('searchNoResults')}</div>
-                <div className="search-empty-hint">{t('searchHint')}</div>
-              </div>
-            ) : (
-              <>
-                {searchResults.map((result) => (
-                  <button
-                    key={result.id}
-                    className="search-result-item"
-                    onClick={() => handleSearchResultClick(result)}
-                  >
-                    <div className="search-result-icon">
-                      <result.icon size={15} />
-                    </div>
-                    <div className="search-result-info">
-                      <div className="search-result-title">{result.title}</div>
-                      <div className="search-result-detail">{result.detail}</div>
-                    </div>
-                    <span className="search-result-type">{typeLabel(result.type)}</span>
-                  </button>
-                ))}
-              </>
-            )}
-          </div>
-        )}
-      </div>
 
       <div className="topbar-actions">
         {/* Language Toggle */}
@@ -303,7 +154,7 @@ export default function Topbar({ pageTitle, pageSubtitle }) {
           <button className="topbar-user profile-trigger" onClick={() => setIsProfileOpen((prev) => !prev)} title={t('profile')}>
             <div className="topbar-user-meta">
               <div className="topbar-user-name">{userName}</div>
-              <div className="topbar-user-role">{userRole}</div>
+              <div className="topbar-user-role">{displayRole}</div>
             </div>
             <div className="avatar-wrap">
               <div className="avatar">{userInitials}</div>
@@ -317,7 +168,7 @@ export default function Topbar({ pageTitle, pageSubtitle }) {
                   <div className="profile-avatar-lg">{userInitials}</div>
                   <div>
                     <div className="profile-panel-name">{userName}</div>
-                    <div className="profile-panel-role-badge">{userRole}</div>
+                    <div className="profile-panel-role-badge">{displayRole}</div>
                   </div>
                 </div>
                 {userEmail && <div className="profile-panel-email">{userEmail}</div>}

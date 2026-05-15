@@ -3,7 +3,7 @@ import { Activity, Calendar, Clock, Star, Users } from 'lucide-react';
 import Layout from '../../components/Layout';
 import UpcomingConsultations from '../../components/UpcomingConsultations';
 import PracticeInsights from '../../components/PracticeInsights';
-import AIChatPanel from '../../components/AIChatPanel';
+
 
 const API_BASE = 'http://localhost:8000';
 
@@ -91,10 +91,7 @@ export default function DoctorDashboard() {
           {/* Right Column */}
           <div className="page-stack">
 
-            {/* AI Practice Assistant Panel */}
-            <section style={{ height: '500px' }}>
-              <AIChatPanel />
-            </section>
+
 
             {/* Recent Clinical Logs */}
             <div className="card">

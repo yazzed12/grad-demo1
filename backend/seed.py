@@ -34,7 +34,7 @@ def seed_db():
             models.User(
                 username="doctor1",
                 hashed_password=pwd_context.hash("password123"),
-                full_name="Dr. Sarah Mitchell",
+                full_name="DR Yehia El-ameir",
                 email="sarah.m@smartclinic.com",
                 role="doctor"
             ),

@@ -13,6 +13,22 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     role = Column(String, default="doctor") # admin / doctor / receptionist
     is_active = Column(Integer, default=1)
+    phone = Column(String, nullable=True)
+    specialization = Column(String, nullable=True)
+
+class ClinicSettings(Base):
+    __tablename__ = "clinic_settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False, default="Smart Dental Clinic")
+    email = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    address = Column(String, nullable=True)
+    working_hours = Column(String, nullable=True)
+    appointment_duration = Column(Integer, default=30)
+    services = Column(Text, nullable=True) # JSON array of services
+    notification_settings = Column(Text, nullable=True) # JSON object
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class Patient(Base):
     __tablename__ = "patients"
@@ -25,6 +41,7 @@ class Patient(Base):
     status = Column(String, default="Active")
     condition = Column(String, default="Routine Checkup")
     last_visit = Column(String, nullable=True)
+    blood_type = Column(String, default="Unknown")
 
     appointments = relationship("Appointment", back_populates="patient")
     records = relationship("Record", back_populates="patient")
@@ -104,3 +121,14 @@ class ClinicalReport(Base):
 
     patient = relationship("Patient")
     doctor = relationship("User")
+
+class Symptom(Base):
+    __tablename__ = "symptoms"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, index=True, nullable=False)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    is_active = Column(Integer, default=1)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    creator = relationship("User")

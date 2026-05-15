@@ -17,7 +17,7 @@ const fallbackNotifications = [
   {
     id: 'notif-2',
     title: 'Consultation Completed',
-    body: 'Dr. Sarah Mitchell finished consultation with Layla Khalil.',
+    body: 'DR Yehia El-ameir finished consultation with Layla Khalil.',
     type: 'success',
     read: false,
     created_at: new Date(Date.now() - 25 * 60000).toISOString(),

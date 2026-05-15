@@ -1873,6 +1873,11 @@ body {
   box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.14);
 }
 
+.dropdown-item-hover:hover {
+  background: var(--clr-primary-light);
+  color: var(--clr-primary-dark);
+}
+
 [data-theme="dark"] .form-select {
   background: #24273a;
 }

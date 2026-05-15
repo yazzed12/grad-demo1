@@ -20,7 +20,7 @@ const BLOOD_COLORS = {
 function AddPatientModal({ onClose }) {
   const { addPatient, doctors } = useData();
   const [formData, setFormData] = useState({
-    name: '', age: '', gender: 'M', blood: 'O+',
+    name: '', age: '', gender: 'M', bloodType: 'O+',
     phone: '', doctor: doctors[0]?.name || '',
     condition: '', status: 'Active',
     lastVisit: new Date().toISOString().split('T')[0],
@@ -70,7 +70,7 @@ function AddPatientModal({ onClose }) {
             <label className="form-label">Blood Type</label>
             <select 
               className="form-select"
-              value={formData.blood} onChange={e => setFormData({...formData, blood: e.target.value})}
+              value={formData.bloodType} onChange={e => setFormData({...formData, bloodType: e.target.value})}
             >
               {Object.keys(BLOOD_COLORS).map(b => <option key={b}>{b}</option>)}
             </select>
@@ -127,8 +127,8 @@ function PatientModal({ patient, onClose }) {
             <div style={{ fontSize: '0.8rem', color: 'var(--clr-text-muted)' }}>{patient.gender === 'F' ? 'Female' : 'Male'} · {patient.age} years · {patient.phone}</div>
           </div>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ width: 36, height: 36, borderRadius: 'var(--r-sm)', background: `${BLOOD_COLORS[patient.blood]}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${BLOOD_COLORS[patient.blood]}44` }}>
-              <span style={{ fontSize: '0.75rem', fontWeight: 800, color: BLOOD_COLORS[patient.blood] }}>{patient.blood}</span>
+            <div style={{ width: 36, height: 36, borderRadius: 'var(--r-sm)', background: `${BLOOD_COLORS[patient.bloodType] || '#94a3b8'}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${BLOOD_COLORS[patient.bloodType] || '#94a3b8'}44` }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 800, color: BLOOD_COLORS[patient.bloodType] || '#94a3b8' }}>{patient.bloodType || 'N/A'}</span>
             </div>
             <div style={{ fontSize: '0.6rem', color: 'var(--clr-text-muted)', marginTop: 2 }}>Blood</div>
           </div>
@@ -256,12 +256,12 @@ export default function Patients() {
                   <td>
                     <span style={{
                       padding: '2px 8px', borderRadius: 'var(--r-sm)',
-                      background: `${BLOOD_COLORS[p.blood]}22`,
-                      color: BLOOD_COLORS[p.blood],
+                      background: `${BLOOD_COLORS[p.bloodType] || '#94a3b8'}22`,
+                      color: BLOOD_COLORS[p.bloodType] || '#94a3b8',
                       fontSize: '0.75rem', fontWeight: 700,
-                      border: `1px solid ${BLOOD_COLORS[p.blood]}44`,
+                      border: `1px solid ${BLOOD_COLORS[p.bloodType] || '#94a3b8'}44`,
                     }}>
-                      {p.blood}
+                      {p.bloodType || 'Unknown'}
                     </span>
                   </td>
                   <td style={{ color: 'var(--clr-text-primary)' }}>{p.condition}</td>
