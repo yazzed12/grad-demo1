@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { useData } from '../../context/DataContext';
 import { Calendar, X } from 'lucide-react';
+import { ConditionSelect } from '../AppointmentModals';
 
 export default function AddModal({ onClose }) {
   const { addAppointment, doctors, patients } = useData();
   const [formData, setFormData] = useState({
     patient: patients[0]?.name || '', doctor: doctors[0]?.name || '',
     date: new Date().toISOString().split('T')[0], time: '09:00',
-    type: 'Consultation', room: '', notes: ''
+    type: 'Consultation', room: '', notes: '',
+    condition: 'Routine Checkup'
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMsg, setStatusMsg] = useState(null);
@@ -28,7 +30,8 @@ export default function AddModal({ onClose }) {
       patient_id: selectedPatient.id,
       date: formData.date,
       time: formData.time,
-      type: formData.type
+      type: formData.type,
+      condition: formData.condition
     };
 
     const newAppt = await addAppointment(payload);
@@ -78,6 +81,10 @@ export default function AddModal({ onClose }) {
             <div className="form-group"><label className="form-label">Time</label>
               <input className="form-input" type="time" style={{ width:'100%' }} value={formData.time} onChange={e=>setFormData({...formData,time:e.target.value})}/>
             </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Visit Reason / Dental Condition</label>
+            <ConditionSelect value={formData.condition} onChange={val => setFormData({...formData, condition: val})} />
           </div>
           <div className="form-group"><label className="form-label">Notes</label>
             <textarea className="form-input" placeholder="Notes..." rows={2} value={formData.notes} onChange={e=>setFormData({...formData,notes:e.target.value})} style={{ resize:'vertical' }}/>

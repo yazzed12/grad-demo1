@@ -22,7 +22,7 @@ function AddPatientModal({ onClose }) {
   const [formData, setFormData] = useState({
     name: '', age: '', gender: 'M', bloodType: 'O+',
     phone: '', doctor: doctors[0]?.name || '',
-    condition: '', status: 'Active',
+    status: 'Active',
     lastVisit: new Date().toISOString().split('T')[0],
     nextVisit: '—'
   });
@@ -91,12 +91,6 @@ function AddPatientModal({ onClose }) {
               {doctors.map(d => <option key={d.id}>{d.name}</option>)}
             </select>
           </div>
-          <div className="form-group" style={{ gridColumn: 'span 2' }}>
-            <label className="form-label">Primary Condition</label>
-            <input 
-              className="form-input" placeholder="e.g. Hypertension" required 
-              value={formData.condition} onChange={e => setFormData({...formData, condition: e.target.value})}
-            />
           </div>
         </div>
 
@@ -138,7 +132,7 @@ function PatientModal({ patient, onClose }) {
         <div className="grid-2" style={{ gap: 12, marginBottom: 16 }}>
           {[
             { label: 'Assigned Doctor', value: patient.doctor },
-            { label: 'Condition',       value: patient.condition },
+            { label: 'Blood Type',      value: patient.bloodType || 'Unknown' },
             { label: 'Status',          value: patient.status, badge: true },
             { label: 'Last Visit',      value: patient.lastVisit },
             { label: 'Next Visit',      value: patient.nextVisit },
@@ -172,7 +166,6 @@ export default function Patients() {
 
   const filtered = patients.filter(p => {
     const matchSearch = (p.name?.toLowerCase() || '').includes(search.toLowerCase()) ||
-      (p.condition?.toLowerCase() || '').includes(search.toLowerCase()) ||
       (p.doctor?.toLowerCase() || '').includes(search.toLowerCase());
     const matchFilter = filter === 'All' || p.status === filter;
     return matchSearch && matchFilter;
@@ -236,7 +229,6 @@ export default function Patients() {
                 <th>Patient</th>
                 <th>Age / Gender</th>
                 <th>Blood</th>
-                <th>Condition</th>
                 <th>Assigned Doctor</th>
                 <th>Status</th>
                 <th>Next Visit</th>
@@ -264,7 +256,6 @@ export default function Patients() {
                       {p.bloodType || 'Unknown'}
                     </span>
                   </td>
-                  <td style={{ color: 'var(--clr-text-primary)' }}>{p.condition}</td>
                   <td>{p.doctor}</td>
                   <td><span className={STATUS_COLORS[p.status]}>{p.status}</span></td>
                   <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>{p.nextVisit}</td>

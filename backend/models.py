@@ -55,6 +55,7 @@ class Appointment(Base):
     time = Column(String, nullable=False)
     status = Column(String, default="Pending")  # Pending / Completed
     type = Column(String, default="Normal")    # Urgent / Normal
+    condition = Column(String, default="Routine Checkup")
 
     patient = relationship("Patient", back_populates="appointments")
 
@@ -116,6 +117,7 @@ class ClinicalReport(Base):
     final_medical_report = Column(Text, nullable=True)
     humanized_report = Column(Text, nullable=True)
     status = Column(String, default="draft")  # draft / approved / finalized
+    pdf_path = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -124,6 +126,17 @@ class ClinicalReport(Base):
 
 class Symptom(Base):
     __tablename__ = "symptoms"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, index=True, nullable=False)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    is_active = Column(Integer, default=1)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    creator = relationship("User")
+
+class AppointmentCondition(Base):
+    __tablename__ = "appointment_conditions"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True, nullable=False)

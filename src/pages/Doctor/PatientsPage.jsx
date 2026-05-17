@@ -1,17 +1,44 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, ChevronRight, Clock, Filter, Phone, Plus, Search, Stethoscope, User, X, Eye } from 'lucide-react';
+import { Calendar, ChevronRight, Clock, Filter, Phone, Plus, Search, Stethoscope, User, X, Eye, Trash2, Droplets, Edit3 } from 'lucide-react';
 import Layout from '../../components/Layout';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
-import { PatientViewModal, NewPatientModal, FilterPanel } from '../../components/PatientModals';
+import { PatientViewModal, NewPatientModal, FilterPanel, EditPatientModal } from '../../components/PatientModals';
 
 const DEFAULT_FILTERS = { status: '', gender: '', hasRecords: '' };
 
 export default function PatientsPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { patients, appointments, records, addPatient } = useData();
+  const { patients, appointments, records, addPatient, deletePatient, updatePatient } = useData();
+  const [patientToRemove, setPatientToRemove] = useState(null);
+  const [patientToEdit, setPatientToEdit] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 5000);
+  };
+
+  const handleRemovePatient = async () => {
+    if (!patientToRemove) return;
+    setIsDeleting(true);
+    try {
+      const res = await deletePatient(patientToRemove.id);
+      if (res && res.success) {
+        showToast(res.message || 'Patient removed successfully', 'success');
+      } else {
+        showToast(res ? res.error : 'Failed to remove patient', 'danger');
+      }
+    } catch (e) {
+      showToast('An unexpected error occurred', 'danger');
+    } finally {
+      setIsDeleting(false);
+      setPatientToRemove(null);
+    }
+  };
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [showFilters, setShowFilters] = useState(false);
@@ -132,9 +159,69 @@ export default function PatientsPage() {
                             <p style={{ margin:0,fontSize:'0.72rem',color:'var(--clr-subtext)' }}>P-{String(patient.id).padStart(4,'0')} • {patient.gender || 'Unknown'}</p>
                           </div>
                         </div>
-                        <span className={`badge ${patient.status==='Active'?'badge-success':patient.status==='Critical'?'badge-danger':'badge-warning'}`} style={{ fontSize:'0.65rem' }}>
-                          {patient.status || 'Active'}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {(user?.role === 'doctor' || user?.role === 'admin' || user?.role === 'receptionist') && (
+                            <button 
+                              onClick={() => setPatientToEdit(patient)}
+                              title="Edit Patient"
+                              style={{
+                                width: 26,
+                                height: 26,
+                                borderRadius: 6,
+                                border: '1px solid rgba(16, 185, 129, 0.2)',
+                                background: '#ECFDF5',
+                                color: 'var(--clr-primary)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease'
+                              }}
+                              onMouseOver={(e) => {
+                                e.currentTarget.style.background = 'var(--clr-primary)';
+                                e.currentTarget.style.color = '#FFFFFF';
+                              }}
+                              onMouseOut={(e) => {
+                                e.currentTarget.style.background = '#ECFDF5';
+                                e.currentTarget.style.color = 'var(--clr-primary)';
+                              }}
+                            >
+                              <Edit3 size={13} />
+                            </button>
+                          )}
+                          {(user?.role === 'doctor' || user?.role === 'admin') && (
+                            <button 
+                              onClick={() => setPatientToRemove(patient)}
+                              title="Remove Patient"
+                              style={{
+                                width: 26,
+                                height: 26,
+                                borderRadius: 6,
+                                border: '1px solid rgba(239, 68, 68, 0.2)',
+                                background: '#FEF2F2',
+                                color: 'var(--clr-danger)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease'
+                              }}
+                              onMouseOver={(e) => {
+                                e.currentTarget.style.background = 'var(--clr-danger)';
+                                e.currentTarget.style.color = '#FFFFFF';
+                              }}
+                              onMouseOut={(e) => {
+                                e.currentTarget.style.background = '#FEF2F2';
+                                e.currentTarget.style.color = 'var(--clr-danger)';
+                              }}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                          <span className={`badge ${patient.status==='Active'?'badge-success':patient.status==='Critical'?'badge-danger':'badge-warning'}`} style={{ fontSize:'0.65rem' }}>
+                            {patient.status || 'Active'}
+                          </span>
+                        </div>
                       </div>
 
                       {/* Info */}
@@ -150,12 +237,9 @@ export default function PatientsPage() {
                         <div style={{ display:'flex',alignItems:'center',gap:8,fontSize:'0.78rem',color:'var(--clr-subtext)' }}>
                           <Calendar size={13}/> Last: <strong style={{ color:'var(--clr-text)' }}>{patient.lastVisit || 'Never'}</strong>
                         </div>
-                      </div>
-
-                      {/* Condition */}
-                      <div>
-                        <p style={{ margin:0,fontSize:'0.68rem',color:'var(--clr-subtext)',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.03em' }}>Condition</p>
-                        <p style={{ margin:'2px 0 0',fontSize:'0.82rem',color:'var(--clr-text)' }}>{patient.condition || 'N/A'}</p>
+                        <div style={{ display:'flex',alignItems:'center',gap:8,fontSize:'0.78rem',color:'var(--clr-subtext)' }}>
+                          <Droplets size={13}/> Blood Type: <strong style={{ color: (patient.bloodType || patient.blood_type) && (patient.bloodType || patient.blood_type) !== 'Unknown' ? 'var(--clr-danger)' : 'var(--clr-text)' }}>{patient.bloodType || patient.blood_type || 'Unknown'}</strong>
+                        </div>
                       </div>
 
                       {/* Stats row */}
@@ -201,6 +285,98 @@ export default function PatientsPage() {
           onViewConsultation={(p)=>{setViewPatient(null);navigate(`/doctor/consultation/${p.id}`, { state: { patient: p } });}}
           onCreateAppointment={()=>navigate('/doctor/appointments')}
         />
+      )}
+      {patientToEdit && (
+        <EditPatientModal
+          patient={patientToEdit}
+          role={user?.role}
+          onClose={(updated)=>{
+            setPatientToEdit(null);
+            if (updated) {
+              showToast('Patient updated successfully', 'success');
+            }
+          }}
+          onSave={updatePatient}
+        />
+      )}
+
+      {/* Remove Confirmation Modal */}
+      {patientToRemove && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(15, 17, 23, 0.6)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          animation: 'fadeIn 0.2s ease-out'
+        }}>
+          <div className="card" style={{
+            width: '90%',
+            maxWidth: 420,
+            padding: 24,
+            borderRadius: 16,
+            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
+            background: 'var(--clr-card)'
+          }}>
+            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--clr-text)', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Trash2 size={20} color="var(--clr-danger)" />
+              Confirm Removal
+            </h3>
+            <p style={{ marginTop: 14, marginBottom: 20, fontSize: '0.88rem', color: 'var(--clr-subtext)', lineHeight: 1.5 }}>
+              Are you sure you want to remove patient <strong style={{ color: 'var(--clr-text)' }}>{patientToRemove.name}</strong>?
+              {getPatientStats(patientToRemove.id).records > 0 && (
+                <span style={{ display: 'block', marginTop: 8, padding: 8, background: '#FEF2F2', borderRadius: 8, color: 'var(--clr-danger)', fontSize: '0.78rem', fontWeight: 700 }}>
+                  ⚠️ This patient has existing medical reports. They will be safely archived instead of completely deleted to preserve history.
+                </span>
+              )}
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button 
+                onClick={() => setPatientToRemove(null)} 
+                className="btn btn-secondary btn-sm" 
+                disabled={isDeleting}
+                style={{ minWidth: 80 }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleRemovePatient} 
+                className="btn btn-danger btn-sm"
+                disabled={isDeleting}
+                style={{ minWidth: 120, background: 'var(--clr-danger)', borderColor: 'var(--clr-danger)', color: '#fff' }}
+              >
+                {isDeleting ? 'Removing…' : 'Remove Patient'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Feedback */}
+      {toast && (
+        <div style={{
+          position: 'fixed',
+          bottom: 24,
+          right: 24,
+          padding: '12px 20px',
+          borderRadius: 10,
+          background: toast.type === 'success' ? 'var(--clr-primary-light)' : '#FEF2F2',
+          border: `1px solid ${toast.type === 'success' ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}`,
+          color: toast.type === 'success' ? 'var(--clr-primary-dark)' : 'var(--clr-error)',
+          fontWeight: 700,
+          fontSize: '0.84rem',
+          boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          zIndex: 1100,
+          animation: 'fadeIn 0.2s ease-out'
+        }}>
+          {toast.type === 'success' ? '✓' : '⚠️'} {toast.message}
+        </div>
       )}
     </Layout>
   );

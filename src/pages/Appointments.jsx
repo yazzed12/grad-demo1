@@ -200,7 +200,7 @@ export default function Appointments() {
             <table style={{ width:'100%',borderCollapse:'collapse' }}>
               <thead>
                 <tr style={{ borderBottom:'2px solid var(--clr-border)' }}>
-                  {['ID','Patient','Doctor','Type','Date & Time','Status','Actions'].map(h=>(
+                  {['ID','Patient','Doctor','Visit Reason','Date & Time','Status','Actions'].map(h=>(
                     <th key={h} style={{ padding:'12px 16px',fontSize:'0.68rem',color:'var(--clr-subtext)',textTransform:'uppercase',letterSpacing:'0.05em',fontWeight:700,textAlign:'left' }}>{h}</th>
                   ))}
                 </tr>
@@ -221,7 +221,7 @@ export default function Appointments() {
                       </div>
                     </td>
                     <td style={{ padding:'12px 16px',color:'var(--clr-subtext)',fontSize:'0.84rem' }}>{a.doctor}</td>
-                    <td style={{ padding:'12px 16px' }}><span className={TYPE_CLASS[a.type]||'badge badge-primary'} style={{ fontWeight:700,fontSize:'0.72rem' }}>{a.type}</span></td>
+                    <td style={{ padding:'12px 16px' }}><span className="badge badge-primary" style={{ fontWeight:700,fontSize:'0.72rem',background:'var(--clr-primary-light)',color:'var(--clr-primary-dark)',border:'1px solid rgba(16,185,129,0.15)' }}>{a.condition || 'Routine Checkup'}</span></td>
                     <td style={{ padding:'12px 16px' }}>
                       <div style={{ display:'flex',flexDirection:'column',gap:2 }}>
                         <span style={{ display:'flex',alignItems:'center',gap:5,fontSize:'0.82rem',color:'var(--clr-text)',fontWeight:600 }}><Calendar size={12} color="var(--clr-text-light)"/> {a.date}</span>

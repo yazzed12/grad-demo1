@@ -104,6 +104,7 @@ export default function ConsultationsHistory() {
 }
 
 function ExpandableConsultationCard({ report, isExpanded, onToggle, onUpdate }) {
+  const { formatDateTime } = useLanguage();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isHumanizing, setIsHumanizing] = useState(false);
@@ -196,9 +197,7 @@ function ExpandableConsultationCard({ report, isExpanded, onToggle, onUpdate }) 
     }
   };
 
-  const dateObj = new Date(report.created_at);
-  const dateStr = dateObj.toLocaleDateString();
-  const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
 
   return (
     <div className={`card transition-all ${isExpanded ? 'shadow-lg is-expanded' : 'hover-scale'}`} 
@@ -226,7 +225,7 @@ function ExpandableConsultationCard({ report, isExpanded, onToggle, onUpdate }) 
           <div style={{ width: 1, height: 20, background: 'var(--clr-border)', margin: '0 4px' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.75rem', color: '#64748b', fontWeight: 700 }}>
              <Clock size={14} style={{ color: 'var(--clr-primary)' }} />
-             <span>{dateStr} • {timeStr}</span>
+             <span>{formatDateTime(report.created_at, 'full')}</span>
           </div>
         </div>
 

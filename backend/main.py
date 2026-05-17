@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException, Request, Response, status, BackgroundTasks
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session, joinedload
@@ -154,6 +155,20 @@ class AppointmentCreate(BaseModel):
     date: str
     time: str
     type: Optional[str] = "Normal"
+    condition: Optional[str] = "Routine Checkup"
+
+class AppointmentConditionCreate(BaseModel):
+    name: str
+
+class AppointmentConditionResponse(BaseModel):
+    id: int
+    name: str
+    created_by: Optional[int] = None
+    is_active: int
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
 
 class ConsultationPayload(BaseModel):
     toothData: dict
@@ -198,7 +213,7 @@ class NotificationResponse(BaseModel):
     body: str
     type: str
     read: bool
-    created_at: datetime
+    created_at: str
 
 class SymptomCreate(BaseModel):
     name: str
@@ -374,7 +389,7 @@ def get_dashboard(db: Session = Depends(get_db)):
     # Note: Dashboard is currently public for quick initial load, 
     # but in a real enterprise app, this should be protected.
     today_str = date.today().isoformat()
-    total_patients = db.query(models.Patient).count()
+    total_patients = db.query(models.Patient).filter(models.Patient.status != "Archived").count()
     today_appointments = db.query(models.Appointment).filter(
         models.Appointment.date == today_str,
         models.Appointment.status != "Completed"
@@ -420,7 +435,7 @@ def get_logs(db: Session = Depends(get_db)):
     return [{
         "id": l.id,
         "message": l.message,
-        "created_at": l.created_at.strftime("%b %d, %H:%M")
+        "created_at": l.created_at.isoformat() + "Z" if l.created_at else None
     } for l in logs]
 
 # ── Notifications Endpoints ────────────────────────────────────────────────
@@ -434,7 +449,7 @@ def get_notifications(db: Session = Depends(get_db)):
         "body": n.body,
         "type": n.type,
         "read": bool(n.read),
-        "created_at": n.created_at
+        "created_at": n.created_at.isoformat() + "Z" if n.created_at else None
     } for n in notifications]
 
 @app.patch("/api/notifications/{notification_id}/read")
@@ -449,7 +464,7 @@ def mark_notification_read(notification_id: int, db: Session = Depends(get_db)):
 # ── Core Data Endpoints ───────────────────────────────────────────────────────
 @app.get("/api/patients")
 def get_patients(db: Session = Depends(get_db)):
-    patients = db.query(models.Patient).all()
+    patients = db.query(models.Patient).filter(models.Patient.status != "Archived").all()
     return [{"id": p.id, "name": p.name, "age": p.age, "phone": p.phone, "gender": p.gender, "status": p.status, "condition": p.condition, "lastVisit": p.last_visit, "bloodType": p.blood_type} for p in patients]
 
 @app.post("/api/patients")
@@ -492,13 +507,28 @@ def get_patient(patient_id: int, db: Session = Depends(get_db)):
     }
 
 @app.delete("/api/patients/{patient_id}")
-def delete_patient(patient_id: int, db: Session = Depends(get_db), user: models.User = Depends(require_staff_role())):
+def delete_patient(patient_id: int, db: Session = Depends(get_db), user: models.User = Depends(require_role('doctor'))):
     patient = db.query(models.Patient).filter(models.Patient.id == patient_id).first()
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
-    db.delete(patient)
-    db.commit()
-    return {"status": "success"}
+        
+    has_appointments = db.query(models.Appointment).filter(models.Appointment.patient_id == patient_id).first() is not None
+    has_records = db.query(models.Record).filter(models.Record.patient_id == patient_id).first() is not None
+    has_consultations = db.query(models.Consultation).filter(models.Consultation.patient_id == patient_id).first() is not None
+    has_reports = db.query(models.ClinicalReport).filter(models.ClinicalReport.patient_id == patient_id).first() is not None
+    
+    if has_appointments or has_records or has_consultations or has_reports:
+        # Soft delete / safely archive
+        patient.status = "Archived"
+        log_event(db, f"Patient {patient.name} archived safely due to existing clinical/appointment history.", doctor_id=user.id, patient_id=patient_id)
+        db.commit()
+        return {"status": "success", "action": "archived", "message": "Patient archived safely to preserve clinical history."}
+    else:
+        # Hard delete (safe because there is no clinical history or appointments)
+        db.delete(patient)
+        log_event(db, f"Patient {patient.name} deleted completely.", doctor_id=user.id)
+        db.commit()
+        return {"status": "success", "action": "deleted", "message": "Patient deleted successfully from system."}
 
 @app.get("/api/appointments")
 def get_appointments(db: Session = Depends(get_db)):
@@ -510,7 +540,8 @@ def get_appointments(db: Session = Depends(get_db)):
         "date": str(a.date),
         "time": a.time,
         "type": a.type,
-        "status": a.status
+        "status": a.status,
+        "condition": a.condition if a.condition else "Routine Checkup"
     } for a in appointments]
 
 @app.post("/api/appointments")
@@ -525,7 +556,8 @@ def create_appointment(payload: AppointmentCreate, background_tasks: BackgroundT
         date=appt_date,
         time=payload.time,
         type=payload.type,
-        status="Pending"
+        status="Pending",
+        condition=payload.condition if payload.condition else "Routine Checkup"
     )
     db.add(new_appt)
     db.commit()
@@ -542,7 +574,8 @@ def create_appointment(payload: AppointmentCreate, background_tasks: BackgroundT
         "date": str(new_appt.date),
         "time": new_appt.time,
         "type": new_appt.type,
-        "status": new_appt.status
+        "status": new_appt.status,
+        "condition": new_appt.condition
     }
 
 @app.put("/api/appointments/{appointment_id}/status")
@@ -558,10 +591,6 @@ def update_appointment_status(appointment_id: int, status_update: dict, db: Sess
         # Notify Doctor if patient arrived
         if new_status.lower() == "arrived" and old_status.lower() != "arrived":
             patient_name = appt.patient.name if appt.patient else "A patient"
-            # Find the assigned doctor for this appointment
-            # In your schema, doctor_id isn't directly on Appointment, 
-            # but we can look for ClinicalReports or just notify based on system logic.
-            # However, for this task, we will create a general notification or target clinical staff.
             notification = models.Notification(
                 title="Patient Arrived",
                 body=f"{patient_name} has arrived for their {appt.time} appointment.",
@@ -593,6 +622,8 @@ def update_appointment(appointment_id: int, payload: dict, db: Session = Depends
         appt.status = payload["status"]
     if "notes" in payload:
         appt.notes = payload.get("notes", "")
+    if "condition" in payload:
+        appt.condition = payload["condition"]
     
     log_event(db, f"Appointment {appointment_id} updated by {user.username}", doctor_id=user.id, patient_id=appt.patient_id)
     db.commit()
@@ -607,8 +638,44 @@ def update_appointment(appointment_id: int, payload: dict, db: Session = Depends
         "time": appt.time,
         "type": appt.type,
         "status": appt.status,
+        "condition": appt.condition if appt.condition else "Routine Checkup",
         "notes": getattr(appt, 'notes', '')
     }
+
+@app.delete("/api/appointments/{appointment_id}")
+def delete_appointment(appointment_id: int, db: Session = Depends(get_db), user: models.User = Depends(require_staff_role())):
+    appt = db.query(models.Appointment).filter(models.Appointment.id == appointment_id).first()
+    if not appt:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    db.delete(appt)
+    db.commit()
+    return {"status": "success"}
+
+@app.get("/api/appointment-conditions")
+def get_appointment_conditions(db: Session = Depends(get_db)):
+    conditions = db.query(models.AppointmentCondition).filter(models.AppointmentCondition.is_active == 1).all()
+    return [{"id": c.id, "name": c.name} for c in conditions]
+
+@app.post("/api/appointment-conditions")
+def create_appointment_condition(payload: AppointmentConditionCreate, db: Session = Depends(get_db), user: models.User = Depends(require_staff_role())):
+    normalized_name = payload.name.strip().title()
+    if not normalized_name:
+        raise HTTPException(status_code=400, detail="Condition name cannot be empty")
+    
+    existing = db.query(models.AppointmentCondition).filter(models.AppointmentCondition.name == normalized_name).first()
+    if existing:
+        return {"id": existing.id, "name": existing.name, "message": "Condition already exists"}
+        
+    new_cond = models.AppointmentCondition(
+        name=normalized_name,
+        created_by=user.id,
+        is_active=1
+    )
+    db.add(new_cond)
+    db.commit()
+    db.refresh(new_cond)
+    return {"id": new_cond.id, "name": new_cond.name}
+
 @app.delete("/api/appointments/{appointment_id}")
 def delete_appointment(appointment_id: int, db: Session = Depends(get_db), user: models.User = Depends(require_staff_role())):
     appt = db.query(models.Appointment).filter(models.Appointment.id == appointment_id).first()
@@ -736,7 +803,7 @@ def get_consultation(patient_id: int, db: Session = Depends(get_db), user: model
         "patientId": consultation.patient_id,
         "toothData": json.loads(consultation.data),
         "version": consultation.version,
-        "lastUpdated": consultation.last_updated
+        "lastUpdated": consultation.last_updated.isoformat() + "Z" if consultation.last_updated else None
     }
 
 @app.post("/api/consultations/{patient_id}")
@@ -802,6 +869,234 @@ def finish_appointment(appointment_id: int, db: Session = Depends(get_db), user:
     db.commit()
     return {"status": "success"}
 
+def generate_pdf_report_file(report: models.ClinicalReport, db: Session):
+    """Generate a clean, beautiful medical-themed PDF clinical report."""
+    try:
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib import colors
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        reports_dir = os.path.join(base_dir, "static_reports")
+        os.makedirs(reports_dir, exist_ok=True)
+        
+        pdf_filename = f"report_{report.id}_{int(time.time())}.pdf"
+        pdf_filepath = os.path.join(reports_dir, pdf_filename)
+        
+        doc = SimpleDocTemplate(
+            pdf_filepath,
+            pagesize=letter,
+            rightMargin=36,
+            leftMargin=36,
+            topMargin=36,
+            bottomMargin=36
+        )
+        
+        styles = getSampleStyleSheet()
+        
+        # Premium medical styles
+        title_style = ParagraphStyle(
+            'ClinicTitle',
+            parent=styles['Heading1'],
+            fontName='Helvetica-Bold',
+            fontSize=20,
+            textColor=colors.HexColor('#FFFFFF'),
+            spaceAfter=4
+        )
+        
+        subtitle_style = ParagraphStyle(
+            'ClinicSubtitle',
+            parent=styles['Normal'],
+            fontName='Helvetica',
+            fontSize=9.5,
+            textColor=colors.HexColor('#E0F2FE'),
+            spaceAfter=2,
+            leading=13
+        )
+        
+        h1_style = ParagraphStyle(
+            'SectionHeader',
+            parent=styles['Heading2'],
+            fontName='Helvetica-Bold',
+            fontSize=13,
+            textColor=colors.HexColor('#0f766e'), # Medical Dark Teal
+            spaceBefore=12,
+            spaceAfter=6
+        )
+        
+        label_style = ParagraphStyle(
+            'InfoLabel',
+            parent=styles['Normal'],
+            fontName='Helvetica-Bold',
+            fontSize=9,
+            textColor=colors.HexColor('#475569')
+        )
+        
+        val_style = ParagraphStyle(
+            'InfoVal',
+            parent=styles['Normal'],
+            fontName='Helvetica',
+            fontSize=9,
+            textColor=colors.HexColor('#1E293B')
+        )
+        
+        body_style = ParagraphStyle(
+            'ReportBody',
+            parent=styles['Normal'],
+            fontName='Helvetica',
+            fontSize=9.5,
+            textColor=colors.HexColor('#1E293B'),
+            leading=14,
+            spaceAfter=6
+        )
+        
+        footer_style = ParagraphStyle(
+            'FooterText',
+            parent=styles['Normal'],
+            fontName='Helvetica-Oblique',
+            fontSize=8,
+            textColor=colors.HexColor('#94A3B8'),
+            alignment=1
+        )
+
+        elements = []
+        
+        # 1. Header Banner
+        header_data = [
+            [
+                Paragraph("SMART DENTAL CLINIC", title_style),
+                Paragraph("<b>Email:</b> info@smartclinic.com<br/><b>Phone:</b> +1 555-9000<br/><b>Address:</b> 1200 Health Blvd, NY", subtitle_style)
+            ]
+        ]
+        header_table = Table(header_data, colWidths=[300, 240])
+        header_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#0f766e')),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('PADDING', (0, 0), (-1, -1), 14),
+            ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+        ]))
+        elements.append(header_table)
+        elements.append(Spacer(1, 14))
+        
+        # Helper to append solid lines
+        def add_separator():
+            line_table = Table([[""]], colWidths=[540], rowHeights=[1])
+            line_table.setStyle(TableStyle([
+                ('LINEABOVE', (0,0), (-1,-1), 1, colors.HexColor('#E2E8F0')),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 0),
+                ('TOPPADDING', (0,0), (-1,-1), 0),
+            ]))
+            elements.append(line_table)
+            elements.append(Spacer(1, 6))
+            
+        # 2. Document Info
+        patient = report.patient
+        doctor = report.doctor
+        created_time = report.created_at.strftime("%Y-%m-%d %I:%M %p") if report.created_at else datetime.utcnow().strftime("%Y-%m-%d %I:%M %p")
+        
+        info_data = [
+            [
+                Paragraph("<b>Patient Name:</b>", label_style), Paragraph(patient.name if patient else "N/A", val_style),
+                Paragraph("<b>Doctor Name:</b>", label_style), Paragraph(doctor.full_name if doctor else "N/A", val_style)
+            ],
+            [
+                Paragraph("<b>Age / Gender:</b>", label_style), Paragraph(f"{patient.age if patient else 'N/A'}y / {patient.gender if patient else 'N/A'}", val_style),
+                Paragraph("<b>Specialization:</b>", label_style), Paragraph(doctor.specialization if doctor and doctor.specialization else "General Dentistry", val_style)
+            ],
+            [
+                Paragraph("<b>Phone / Blood Type:</b>", label_style), Paragraph(f"{patient.phone if patient else 'N/A'} (Blood: {patient.blood_type if patient else 'Unknown'})", val_style),
+                Paragraph("<b>Consultation Time:</b>", label_style), Paragraph(created_time, val_style)
+            ]
+        ]
+        
+        info_table = Table(info_data, colWidths=[100, 170, 100, 170])
+        info_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('PADDING', (0, 0), (-1, -1), 4),
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F8FAFC')),
+            ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#E2E8F0')),
+        ]))
+        elements.append(info_table)
+        elements.append(Spacer(1, 10))
+        
+        # 3. Tooth & Diagnosis section
+        elements.append(Paragraph("Consultation Parameters", h1_style))
+        add_separator()
+        
+        symptoms_list = []
+        if report.symptoms:
+            try:
+                symptoms_list = json.loads(report.symptoms)
+            except:
+                symptoms_list = [report.symptoms]
+        symptoms_str = ", ".join(symptoms_list) if symptoms_list else "None Reported"
+        
+        param_data = [
+            [Paragraph("<b>Target Tooth ID:</b>", label_style), Paragraph(report.tooth_id or "General / Non-Specific", val_style)],
+            [Paragraph("<b>Tooth Condition:</b>", label_style), Paragraph(report.tooth_status or "N/A", val_style)],
+            [Paragraph("<b>Reported Symptoms:</b>", label_style), Paragraph(symptoms_str, val_style)]
+        ]
+        param_table = Table(param_data, colWidths=[120, 420])
+        param_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('PADDING', (0, 0), (-1, -1), 4),
+        ]))
+        elements.append(param_table)
+        elements.append(Spacer(1, 10))
+        
+        # 4. Clinical Findings / Approved Report
+        elements.append(Paragraph("Final Clinical Findings & Diagnosis", h1_style))
+        add_separator()
+        
+        findings_text = report.final_medical_report or report.ai_draft_report or "No clinical report notes documented."
+        elements.append(Paragraph(findings_text.replace("\n", "<br/>"), body_style))
+        elements.append(Spacer(1, 10))
+        
+        # 5. Doctor's Private Notes
+        if report.doctor_notes:
+            elements.append(Paragraph("Doctor's Additional Notes", h1_style))
+            add_separator()
+            elements.append(Paragraph(report.doctor_notes.replace("\n", "<br/>"), body_style))
+            elements.append(Spacer(1, 10))
+            
+        # 6. Patient Friendly Explanations (Humanized)
+        if report.humanized_report:
+            elements.append(Paragraph("Patient-Friendly Advice & Explanation", h1_style))
+            add_separator()
+            elements.append(Paragraph(report.humanized_report.replace("\n", "<br/>"), body_style))
+            elements.append(Spacer(1, 10))
+            
+        # 7. Signature area
+        elements.append(Spacer(1, 20))
+        sig_data = [
+            [
+                Paragraph("", val_style),
+                Paragraph("___________________________<br/><b>DR. Signature</b>", val_style)
+            ]
+        ]
+        sig_table = Table(sig_data, colWidths=[340, 200])
+        sig_table.setStyle(TableStyle([
+            ('ALIGN', (1, 0), (1, 0), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'BOTTOM'),
+        ]))
+        elements.append(sig_table)
+        
+        # 8. Footer text
+        elements.append(Spacer(1, 24))
+        elements.append(Paragraph(f"This is an official clinical record generated automatically by Smart Dental Clinic on {created_time}.", footer_style))
+        
+        doc.build(elements)
+        
+        # Update model
+        report.pdf_path = pdf_filepath
+        db.commit()
+        logger.info(f"Successfully generated PDF report at {pdf_filepath}")
+        return pdf_filepath
+    except Exception as e:
+        logger.error(f"Failed to generate PDF: {e}")
+        return None
+
 # ── Clinical Reports (AI + CRUD) ────────────────────────────────────────────
 @app.post("/api/ai/generate-report")
 async def ai_generate_report(payload: dict, db: Session = Depends(get_db), user: models.User = Depends(require_role('doctor'))):
@@ -847,9 +1142,13 @@ def save_report(payload: dict, db: Session = Depends(get_db), user: models.User 
     log_event(db, f"Clinical report saved for patient {payload.get('patient_id')}", doctor_id=user.id, patient_id=payload.get("patient_id"))
     db.commit()
     db.refresh(report)
+    
+    # Generate PDF automatically on save
+    generate_pdf_report_file(report, db)
+    
     return {
         "id": report.id, "patient_id": report.patient_id, "status": report.status,
-        "tooth_id": report.tooth_id, "created_at": str(report.created_at)
+        "tooth_id": report.tooth_id, "created_at": report.created_at.isoformat() + "Z" if report.created_at else None
     }
 
 @app.get("/api/reports/patient/{patient_id}")
@@ -865,9 +1164,35 @@ def get_patient_reports(patient_id: int, db: Session = Depends(get_db)):
         "doctor_notes": r.doctor_notes, "ai_draft_report": r.ai_draft_report,
         "final_medical_report": r.final_medical_report,
         "humanized_report": r.humanized_report, "status": r.status,
-        "created_at": str(r.created_at), "updated_at": str(r.updated_at),
-        "doctor": r.doctor.full_name or r.doctor.username if r.doctor else "Unknown"
+        "created_at": r.created_at.isoformat() + "Z" if r.created_at else None,
+        "updated_at": r.updated_at.isoformat() + "Z" if r.updated_at else None,
+        "doctor": r.doctor.full_name or r.doctor.username if r.doctor else "Unknown",
+        "pdf_url": f"/api/reports/{r.id}/download" if r.pdf_path else None
     } for r in reports]
+
+@app.get("/api/reports/{report_id}/download")
+def download_report(report_id: int, db: Session = Depends(get_db)):
+    """Download the clinical report as a PDF."""
+    report = db.query(models.ClinicalReport).filter(models.ClinicalReport.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Clinical report not found")
+    
+    # Trigger fallback generation if the file doesn't exist yet
+    if not report.pdf_path or not os.path.exists(report.pdf_path):
+        generate_pdf_report_file(report, db)
+        
+    if not report.pdf_path or not os.path.exists(report.pdf_path):
+        raise HTTPException(status_code=404, detail="PDF file could not be generated on this server")
+        
+    patient_name = report.patient.name if report.patient else "Patient"
+    clean_name = "".join(c for c in patient_name if c.isalnum() or c in (' ', '_', '-')).strip()
+    filename = f"Clinical_Report_{clean_name}_{report.tooth_id or 'General'}.pdf"
+    
+    return FileResponse(
+        path=report.pdf_path,
+        media_type="application/pdf",
+        filename=filename
+    )
 
 @app.get("/api/doctor/consultations/history")
 def get_doctor_consultations_history(db: Session = Depends(get_db), user: models.User = Depends(require_role('doctor'))):
@@ -889,8 +1214,8 @@ def get_doctor_consultations_history(db: Session = Depends(get_db), user: models
         "final_medical_report": r.final_medical_report,
         "humanized_report": r.humanized_report,
         "status": r.status,
-        "created_at": str(r.created_at),
-        "updated_at": str(r.updated_at)
+        "created_at": r.created_at.isoformat() + "Z" if r.created_at else None,
+        "updated_at": r.updated_at.isoformat() + "Z" if r.updated_at else None
     } for r in reports]
 
 @app.put("/api/reports/{report_id}")
@@ -909,7 +1234,11 @@ def update_report(report_id: int, payload: dict, db: Session = Depends(get_db), 
             setattr(report, field, val)
     db.commit()
     db.refresh(report)
-    return {"id": report.id, "status": report.status, "updated_at": str(report.updated_at)}
+    
+    # Regenerate PDF automatically on update
+    generate_pdf_report_file(report, db)
+    
+    return {"id": report.id, "status": report.status, "updated_at": report.updated_at.isoformat() + "Z" if report.updated_at else None}
 
 # ── AI Configuration ─────────────────────────────────────────────────────────
 OLLAMA_MODEL = "mistral:latest"

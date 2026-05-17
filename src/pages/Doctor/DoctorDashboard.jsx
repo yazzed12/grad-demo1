@@ -3,11 +3,13 @@ import { Activity, Calendar, Clock, Star, Users } from 'lucide-react';
 import Layout from '../../components/Layout';
 import UpcomingConsultations from '../../components/UpcomingConsultations';
 import PracticeInsights from '../../components/PracticeInsights';
+import { useLanguage } from '../../context/LanguageContext';
 
 
 const API_BASE = 'http://localhost:8000';
 
 export default function DoctorDashboard() {
+  const { formatDateTime } = useLanguage();
   const [dashboardStats, setDashboardStats] = useState(null);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -112,7 +114,7 @@ export default function DoctorDashboard() {
                       </div>
                       <div>
                         <strong style={{ fontSize: '0.86rem' }}>{log.message}</strong>
-                        <div className="muted" style={{ fontSize: '0.76rem' }}>{log.created_at}</div>
+                        <div className="muted" style={{ fontSize: '0.76rem' }}>{formatDateTime(log.created_at, 'compact')}</div>
                       </div>
                     </div>
                   ))

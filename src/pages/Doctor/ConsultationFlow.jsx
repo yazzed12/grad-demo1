@@ -200,7 +200,6 @@ export default function ConsultationFlow() {
         phone: patient.phone, 
         age: patient.age, 
         gender: patient.gender, 
-        condition: patient.condition, 
         bloodType: patient.bloodType || patient.blood_type 
       });
     }
@@ -292,11 +291,11 @@ export default function ConsultationFlow() {
     setIsGenerating(true);
     try {
       const data = {
-        patient: { name: fullName, age: patient?.age, gender: patient?.gender, condition: patient?.condition },
+        patient: { name: fullName, age: patient?.age, gender: patient?.gender, condition: 'Dental Consultation' },
         selectedTooth: selectedToothId,
         toothStatus: selectedToothData.status,
         symptoms: symptoms,
-        patientCondition: patient?.condition || '',
+        patientCondition: 'Dental Consultation',
         doctorNotes: medicalHistory,
         jawTeethStatus: toothData,
       };
@@ -450,18 +449,31 @@ export default function ConsultationFlow() {
           {editingPatient ? (
             <div style={{ marginTop: 14, padding: 14, background: 'var(--clr-bg)', borderRadius: 10, border: '1px solid var(--clr-border)' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
-                {[
-                  { key: 'phone', label: 'Phone', val: patientEdits.phone },
-                  { key: 'age', label: 'Age', val: patientEdits.age, type: 'number' },
-                  { key: 'gender', label: 'Gender', val: patientEdits.gender },
-                  { key: 'bloodType', label: 'Blood Type', val: patientEdits.bloodType },
-                  { key: 'condition', label: 'Condition', val: patientEdits.condition },
-                ].map(f => (
-                  <div key={f.key} className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label" style={{ fontSize: '0.7rem' }}>{f.label}</label>
-                    <input className="form-input" type={f.type || 'text'} value={f.val || ''} onChange={e => setPatientEdits(p => ({ ...p, [f.key]: e.target.value }))} style={{ padding: '6px 10px', fontSize: '0.82rem' }} />
-                  </div>
-                ))}
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.7rem' }}>Phone</label>
+                  <input className="form-input" type="text" value={patientEdits.phone || ''} onChange={e => setPatientEdits(p => ({ ...p, phone: e.target.value }))} style={{ padding: '6px 10px', fontSize: '0.82rem' }} />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.7rem' }}>Age</label>
+                  <input className="form-input" type="number" min="0" max="150" value={patientEdits.age || ''} onChange={e => setPatientEdits(p => ({ ...p, age: e.target.value }))} style={{ padding: '6px 10px', fontSize: '0.82rem' }} />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.7rem' }}>Gender</label>
+                  <select className="form-select" value={patientEdits.gender || 'Unknown'} onChange={e => setPatientEdits(p => ({ ...p, gender: e.target.value }))} style={{ padding: '6px 10px', fontSize: '0.82rem', width: '100%' }}>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                    <option value="Unknown">Unknown</option>
+                  </select>
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: '0.7rem' }}>Blood Type</label>
+                  <select className="form-select" value={patientEdits.bloodType || 'Unknown'} onChange={e => setPatientEdits(p => ({ ...p, bloodType: e.target.value }))} style={{ padding: '6px 10px', fontSize: '0.82rem', width: '100%' }}>
+                    {['Unknown', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(bt => (
+                      <option key={bt} value={bt}>{bt}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
                 <button className="btn btn-primary btn-sm" onClick={handleSavePatient} disabled={isSavingPatient} style={{ fontSize: '0.75rem', gap: 6 }}>

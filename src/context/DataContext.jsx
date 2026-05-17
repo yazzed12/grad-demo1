@@ -98,10 +98,17 @@ export function DataProvider({ children }) {
         }
       });
       if (response.ok) {
+        const data = await response.json();
         setPatients(prev => prev.filter(p => p.id !== id));
+        fetchBackendData(); // Refresh stats instantly
+        return { success: true, action: data.action, message: data.message };
+      } else {
+        const err = await response.json();
+        return { success: false, error: err.detail || 'Failed to remove patient' };
       }
     } catch (err) {
       console.error(err);
+      return { success: false, error: 'Network error occurred' };
     }
   };
 

@@ -379,6 +379,20 @@ body {
   color: var(--clr-primary-dark);
 }
 
+.btn-danger,
+.clinic-btn-danger {
+  background: var(--clr-danger);
+  border-color: var(--clr-danger);
+  color: #FFFFFF;
+}
+
+.btn-danger:hover,
+.clinic-btn-danger:hover {
+  background: #DC2626;
+  border-color: #DC2626;
+  color: #FFFFFF;
+}
+
 .btn-sm {
   min-height: 30px;
   padding: 4px 10px;

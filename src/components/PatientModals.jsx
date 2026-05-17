@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { X, User, Calendar, Clock, FileText, Edit3, Save, Phone, Droplets, Activity, Stethoscope, ChevronRight, AlertCircle, CheckCircle, Eye } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -6,6 +6,26 @@ import { useAuth } from '../context/AuthContext';
 export function PatientViewModal({ patient, appointments, records, onClose, onViewConsultation, onCreateAppointment }) {
   const { user } = useAuth();
   const [tab, setTab] = useState('overview');
+  const [reportsList, setReportsList] = useState([]);
+  const [loadingReports, setLoadingReports] = useState(false);
+
+  useEffect(() => {
+    if (patient.id) {
+      setLoadingReports(true);
+      const token = localStorage.getItem('clinic_token');
+      fetch(`http://localhost:8000/api/reports/patient/${patient.id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      .then(res => res.json())
+      .then(data => {
+        setReportsList(Array.isArray(data) ? data : []);
+      })
+      .catch(err => console.error("Error fetching patient reports:", err))
+      .finally(() => setLoadingReports(false));
+    }
+  }, [patient.id]);
 
   const patientAppts = useMemo(() =>
     (appointments || []).filter(a => a.patient_id === patient.id || a.patient === patient.name)
@@ -27,7 +47,7 @@ export function PatientViewModal({ patient, appointments, records, onClose, onVi
 
   if (user?.role === 'doctor' || user?.role === 'admin') {
     tabs.splice(1, 0, { id: 'consultations', label: `Consultations (${completedAppts.length})` });
-    tabs.splice(2, 0, { id: 'reports', label: `Reports (${patientRecords.length})` });
+    tabs.splice(2, 0, { id: 'reports', label: `Reports (${reportsList.length})` });
   }
 
   return (
@@ -70,7 +90,7 @@ export function PatientViewModal({ patient, appointments, records, onClose, onVi
                   { icon: Phone, label:'Phone', value: patient.phone || 'N/A' },
                   { icon: Droplets, label:'Blood Type', value: patient.bloodType || 'Unknown' },
                   { icon: Calendar, label:'Last Visit', value: patient.lastVisit || 'Never' },
-                  { icon: Activity, label:'Condition', value: patient.condition || 'N/A' },
+                  { icon: User, label:'Gender', value: patient.gender || 'Unknown' },
                 ].map(item => (
                   <div key={item.label} style={{ padding:12,background:'var(--clr-bg)',borderRadius:8,border:'1px solid var(--clr-border)' }}>
                     <div style={{ display:'flex',alignItems:'center',gap:6,fontSize:'0.68rem',color:'var(--clr-subtext)',fontWeight:700,textTransform:'uppercase',marginBottom:4 }}>
@@ -91,7 +111,7 @@ export function PatientViewModal({ patient, appointments, records, onClose, onVi
                   <div style={{ fontSize:'0.7rem',color:'var(--clr-subtext)',fontWeight:700 }}>Consultations</div>
                 </div>
                 <div style={{ padding:12,background:'var(--clr-bg)',borderRadius:8,textAlign:'center',border:'1px solid var(--clr-border)' }}>
-                  <div style={{ fontSize:'1.3rem',fontWeight:900,color:'var(--clr-primary)' }}>{patientRecords.length}</div>
+                  <div style={{ fontSize:'1.3rem',fontWeight:900,color:'var(--clr-primary)' }}>{reportsList.length}</div>
                   <div style={{ fontSize:'0.7rem',color:'var(--clr-subtext)',fontWeight:700 }}>Reports</div>
                 </div>
               </div>
@@ -136,29 +156,114 @@ export function PatientViewModal({ patient, appointments, records, onClose, onVi
 
           {/* Reports Tab */}
           {tab === 'reports' && (
-            <div style={{ display:'flex',flexDirection:'column',gap:10 }}>
-              {patientRecords.length === 0 ? (
-                <EmptyState icon={FileText} text="No clinical reports found"/>
-              ) : patientRecords.map(r => (
-                <div key={r.id} style={{ padding:14,background:'var(--clr-bg)',borderRadius:10,border:'1px solid var(--clr-border)',display:'flex',alignItems:'center',justifyContent:'space-between' }}>
-                  <div>
-                    <div style={{ fontWeight:700,fontSize:'0.88rem',color:'var(--clr-text)' }}>
-                      {r.type || r.diagnosis || 'Clinical Report'}
-                      {r.tooth && <span style={{ fontSize:'0.75rem',color:'var(--clr-subtext)',marginLeft:8 }}>Tooth #{r.tooth}</span>}
+            <div style={{ display:'flex',flexDirection:'column',gap:12 }}>
+              {loadingReports ? (
+                <div style={{ padding:'30px 20px',textAlign:'center',color:'var(--clr-subtext)',fontSize:'0.82rem',fontWeight:700 }}>
+                  Loading clinical reports...
+                </div>
+              ) : reportsList.length === 0 ? (
+                <EmptyState icon={FileText} text="No clinical reports found for this patient"/>
+              ) : reportsList.map(r => (
+                <div key={r.id} style={{ 
+                  padding: 16, 
+                  background: 'var(--clr-bg)', 
+                  borderRadius: 12, 
+                  border: '1px solid var(--clr-border)',
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  gap: 10,
+                  transition: 'box-shadow 0.15s ease'
+                }}>
+                  {/* Title & Badge */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <FileText size={16} color="var(--clr-primary)" />
+                      <span style={{ fontWeight: 800, fontSize: '0.88rem', color: 'var(--clr-text)' }}>
+                        Clinical Consultation Report
+                      </span>
                     </div>
-                    <div style={{ display:'flex',alignItems:'center',gap:10,marginTop:4,fontSize:'0.76rem',color:'var(--clr-subtext)' }}>
-                      <span style={{ display:'flex',alignItems:'center',gap:4 }}><Calendar size={11}/> {r.date || 'N/A'}</span>
-                      <span style={{ display:'flex',alignItems:'center',gap:4 }}><User size={11}/> {r.doctor || 'N/A'}</span>
+                    <span style={{ 
+                      fontSize: '0.68rem', 
+                      fontWeight: 700, 
+                      padding: '3px 8px', 
+                      borderRadius: 6, 
+                      background: '#E0F2FE', 
+                      color: '#0369A1', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 4 
+                    }}>
+                      PDF Document
+                    </span>
+                  </div>
+
+                  {/* Details block */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', fontSize: '0.78rem', color: 'var(--slate-600)' }}>
+                    <div>
+                      <strong>Doctor:</strong> <span style={{ color: 'var(--clr-text)' }}>Dr. {r.doctor || 'Unknown'}</span>
+                    </div>
+                    <div>
+                      <strong>Tooth ID:</strong> <span style={{ color: 'var(--clr-text)' }}>{r.tooth_id ? `Tooth #${r.tooth_id}` : 'General'}</span>
+                    </div>
+                    <div>
+                      <strong>Condition:</strong> <span style={{ color: 'var(--clr-text)' }}>{r.tooth_status || 'N/A'}</span>
+                    </div>
+                    <div>
+                      <strong>Date:</strong> <span style={{ color: 'var(--clr-text)' }}>{r.created_at ? new Date(r.created_at).toLocaleDateString() : 'N/A'}</span>
                     </div>
                   </div>
-                  <div style={{ display:'flex',alignItems:'center',gap:6 }}>
-                    <span className={`badge ${r.status==='Final'?'badge-success':'badge-warning'}`} style={{ fontSize:'0.68rem' }}>{r.status || 'Draft'}</span>
-                    <button className="btn btn-sm" style={{ padding:'5px 10px',fontSize:'0.72rem',display:'flex',alignItems:'center',gap:4,background:'transparent',border:'1px solid var(--clr-border)',color:'var(--clr-text)' }}>
-                      <Eye size={12}/> View
+
+                  {/* Summary / Findings */}
+                  {r.final_medical_report && (
+                    <div style={{ 
+                      padding: '8px 12px', 
+                      background: 'var(--clr-bg)', 
+                      borderRadius: 8, 
+                      borderLeft: '3px solid var(--clr-primary)', 
+                      fontSize: '0.76rem', 
+                      color: 'var(--clr-text)',
+                      lineHeight: 1.4,
+                      border: '1px solid var(--clr-border)',
+                      borderLeftColor: 'var(--clr-primary)'
+                    }}>
+                      <strong>Findings Excerpt:</strong> {r.final_medical_report.length > 150 ? r.final_medical_report.substring(0, 150) + "..." : r.final_medical_report}
+                    </div>
+                  )}
+
+                  {/* Divider */}
+                  <div style={{ borderBottom: '1px solid var(--clr-border)', margin: '4px 0' }}></div>
+
+                  {/* Actions */}
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                    <button 
+                      onClick={() => window.open(`http://localhost:8000/api/reports/${r.id}/download`, '_blank')}
+                      className="btn btn-secondary btn-sm"
+                      style={{ 
+                        padding: '6px 12px', 
+                        fontSize: '0.74rem', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: 6 
+                      }}
+                    >
+                      <Eye size={12}/> View Report
                     </button>
-                    <button className="btn btn-sm" style={{ padding:'5px 10px',fontSize:'0.72rem',display:'flex',alignItems:'center',gap:4,background:'transparent',border:'1px solid var(--clr-border)',color:'var(--clr-primary)' }}>
-                      <Edit3 size={12}/> Edit
-                    </button>
+                    <a 
+                      href={`http://localhost:8000/api/reports/${r.id}/download`} 
+                      download
+                      className="btn btn-primary btn-sm"
+                      style={{ 
+                        padding: '6px 12px', 
+                        fontSize: '0.74rem', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: 6,
+                        textDecoration: 'none',
+                        color: '#fff'
+                      }}
+                    >
+                      <Save size={12}/> Download Report
+                    </a>
                   </div>
                 </div>
               ))}
@@ -201,7 +306,7 @@ function EmptyState({ icon: Icon, text }) {
 
 /* ── New Patient Modal ─────────────────────────────────────── */
 export function NewPatientModal({ onClose, onSave }) {
-  const [form, setForm] = useState({ name:'', phone:'', age:'', gender:'Male', condition:'Routine Checkup', status:'Active', notes:'' });
+  const [form, setForm] = useState({ name:'', phone:'', age:'', gender:'Male', status:'Active', notes:'', bloodType:'Unknown' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -217,8 +322,9 @@ export function NewPatientModal({ onClose, onSave }) {
         phone: form.phone.trim() || null,
         age: form.age ? parseInt(form.age) : null,
         gender: form.gender,
-        condition: form.condition,
         status: form.status,
+        blood_type: form.bloodType || 'Unknown',
+        bloodType: form.bloodType || 'Unknown'
       });
       if (result) onClose(result);
       else setError('Failed to save patient.');
@@ -258,17 +364,21 @@ export function NewPatientModal({ onClose, onSave }) {
           <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:12 }}>
             <div className="form-group"><label className="form-label">Gender</label>
               <select className="form-select" value={form.gender} onChange={e=>set('gender',e.target.value)} style={{ width:'100%' }}>
-                <option>Male</option><option>Female</option><option>Other</option>
+                <option>Male</option><option>Female</option><option>Other</option><option>Unknown</option>
               </select>
             </div>
-            <div className="form-group"><label className="form-label">Status</label>
-              <select className="form-select" value={form.status} onChange={e=>set('status',e.target.value)} style={{ width:'100%' }}>
-                <option>Active</option><option>Inactive</option><option>Critical</option>
+            <div className="form-group"><label className="form-label">Blood Type</label>
+              <select className="form-select" value={form.bloodType} onChange={e=>set('bloodType',e.target.value)} style={{ width:'100%' }}>
+                {['Unknown', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(bt => (
+                  <option key={bt} value={bt}>{bt}</option>
+                ))}
               </select>
             </div>
           </div>
-          <div className="form-group"><label className="form-label">Condition</label>
-            <input className="form-input" placeholder="e.g. Routine Checkup, Dental Pain..." value={form.condition} onChange={e=>set('condition',e.target.value)}/>
+          <div className="form-group"><label className="form-label">Status</label>
+            <select className="form-select" value={form.status} onChange={e=>set('status',e.target.value)} style={{ width:'100%' }}>
+              <option>Active</option><option>Inactive</option><option>Critical</option>
+            </select>
           </div>
         </div>
         <div style={{ padding:'14px 24px',borderTop:'1px solid var(--clr-border)',display:'flex',gap:10,justifyContent:'flex-end' }}>
@@ -307,6 +417,108 @@ export function FilterPanel({ filters, onChange, onReset }) {
           <option value="">All</option><option value="yes">With Reports</option><option value="no">No Reports</option>
         </select>
       </div>
+    </div>
+  );
+}
+
+/* ── Edit Patient Modal ─────────────────────────────────────── */
+export function EditPatientModal({ patient, onClose, onSave, role }) {
+  const [form, setForm] = useState({
+    name: patient.name || '',
+    phone: patient.phone || '',
+    age: patient.age || '',
+    gender: patient.gender || 'Male',
+    status: patient.status || 'Active',
+    bloodType: patient.bloodType || patient.blood_type || 'Unknown'
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.name.trim()) { setError('Patient name is required.'); return; }
+    setSaving(true); setError('');
+    try {
+      const updates = {
+        name: form.name.trim(),
+        phone: form.phone.trim() || null,
+        age: form.age ? parseInt(form.age) : null,
+        gender: form.gender,
+        status: form.status,
+        blood_type: form.bloodType || 'Unknown',
+        bloodType: form.bloodType || 'Unknown'
+      };
+
+      const result = await onSave(patient.id, updates);
+      if (result) onClose(result);
+      else setError('Failed to update patient.');
+    } catch (err) {
+      setError('An error occurred.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const isReceptionist = role === 'receptionist';
+
+  return (
+    <div className="modal-overlay" onClick={() => onClose(null)} style={{ position: 'fixed', inset: 0, zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, backgroundColor: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(3px)' }}>
+      <form className="card animate-fadeIn" onClick={e => e.stopPropagation()} onSubmit={handleSubmit} style={{ maxWidth: 480, width: '100%', padding: 0, overflow: 'hidden', borderRadius: 16 }}>
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--clr-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--clr-primary-light)', display: 'grid', placeItems: 'center' }}>
+              <User size={16} color="var(--clr-primary-dark)" />
+            </div>
+            <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800 }}>Edit Patient</h2>
+          </div>
+          <button type="button" onClick={() => onClose(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--clr-subtext)' }}><X size={18} /></button>
+        </div>
+        <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {error && (
+            <div style={{ padding: '8px 12px', borderRadius: 8, fontSize: '0.8rem', fontWeight: 600, background: 'rgba(239,68,68,0.08)', color: '#dc2626', border: '1px solid rgba(239,68,68,0.15)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <AlertCircle size={14} /> {error}
+            </div>
+          )}
+          <div className="form-group"><label className="form-label">Full Name *</label>
+            <input className="form-input" required placeholder="e.g. Ahmed Al-Rashid" value={form.name} onChange={e => set('name', e.target.value)} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="form-group"><label className="form-label">Phone</label>
+              <input className="form-input" placeholder="+966..." value={form.phone} onChange={e => set('phone', e.target.value)} />
+            </div>
+            <div className="form-group"><label className="form-label">Age</label>
+              <input className="form-input" type="number" min="0" max="150" placeholder="30" value={form.age} onChange={e => set('age', e.target.value)} />
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="form-group"><label className="form-label">Gender</label>
+              <select className="form-select" value={form.gender} onChange={e => set('gender', e.target.value)} style={{ width: '100%' }}>
+                <option>Male</option><option>Female</option><option>Other</option><option>Unknown</option>
+              </select>
+            </div>
+            <div className="form-group"><label className="form-label">Blood Type</label>
+              <select className="form-select" value={form.bloodType} onChange={e => set('bloodType', e.target.value)} style={{ width: '100%' }}>
+                {['Unknown', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(bt => (
+                  <option key={bt} value={bt}>{bt}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="form-group"><label className="form-label">Status</label>
+            <select className="form-select" value={form.status} onChange={e => set('status', e.target.value)} style={{ width: '100%' }}>
+              <option>Active</option><option>Inactive</option><option>Critical</option>
+            </select>
+          </div>
+        </div>
+        <div style={{ padding: '14px 24px', borderTop: '1px solid var(--clr-border)', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button type="button" className="btn btn-secondary" onClick={() => onClose(null)}>Cancel</button>
+          <button type="submit" className="btn btn-primary" disabled={saving} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Save size={14} /> {saving ? 'Saving…' : 'Save Changes'}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

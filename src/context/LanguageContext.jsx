@@ -41,8 +41,57 @@ export function LanguageProvider({ children }) {
     return t('dayAgo').replace('{n}', diffDay);
   }, [t]);
 
+  const formatDateTime = useCallback((dateStr, formatStyle = 'full') => {
+    if (!dateStr) return '';
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return dateStr;
+      
+      const isArabic = language === 'ar';
+      const locale = isArabic ? 'ar' : 'en-US';
+      
+      if (formatStyle === 'timeOnly') {
+        return new Intl.DateTimeFormat(locale, {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        }).format(date);
+      }
+      
+      if (formatStyle === 'compact') {
+        const datePart = new Intl.DateTimeFormat(locale, {
+          month: 'short',
+          day: 'numeric'
+        }).format(date);
+        const timePart = new Intl.DateTimeFormat(locale, {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        }).format(date);
+        return isArabic ? `${datePart}، ${timePart}` : `${datePart}, ${timePart}`;
+      }
+      
+      // Default / Full: e.g. "May 17, 2026 — 4:40 PM"
+      const datePart = new Intl.DateTimeFormat(locale, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      }).format(date);
+      const timePart = new Intl.DateTimeFormat(locale, {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      }).format(date);
+      
+      return `${datePart} — ${timePart}`;
+    } catch (e) {
+      console.error("Error formatting date:", e);
+      return dateStr;
+    }
+  }, [language]);
+
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t, formatTime }}>
+    <LanguageContext.Provider value={{ language, setLanguage, t, formatTime, formatDateTime }}>
       {children}
     </LanguageContext.Provider>
   );
