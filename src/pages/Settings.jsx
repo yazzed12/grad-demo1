@@ -184,7 +184,8 @@ export default function Settings() {
         // Force reload to update user context globally
         setTimeout(() => window.location.reload(), 1000);
       } else {
-        alert("Failed to save profile");
+        const errorData = await res.json().catch(() => ({}));
+        alert(errorData.detail || "Failed to save profile");
       }
     } catch (err) {
       alert("Error saving profile");

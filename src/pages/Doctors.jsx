@@ -26,6 +26,7 @@ function StaffFormModal({ staff, onClose, role = 'doctor' }) {
     password: '',
     full_name: staff?.name || '',
     email: staff?.email || '',
+    personal_email: staff?.personal_email || '',
     phone: staff?.phone || '',
     specialization: staff?.specialization || '',
     role: staff?.role || role
@@ -38,13 +39,14 @@ function StaffFormModal({ staff, onClose, role = 'doctor' }) {
         password: '',
         full_name: staff.name || '',
         email: staff.email || '',
+        personal_email: staff.personal_email || '',
         phone: staff.phone || '',
         specialization: staff.specialization || '',
         role: staff.role || role
       });
     } else {
       setFormData({
-        username: '', password: '', full_name: '', email: '', phone: '', specialization: '', role: role
+        username: '', password: '', full_name: '', email: '', personal_email: '', phone: '', specialization: '', role: role
       });
     }
   }, [staff, role]);
@@ -55,7 +57,7 @@ function StaffFormModal({ staff, onClose, role = 'doctor' }) {
     setError('');
     
     // Simple Validation
-    if (!formData.full_name || !formData.username || !formData.email) {
+    if (!formData.full_name || !formData.username || !formData.personal_email) {
       setError('Please fill in all required fields.');
       setLoading(false);
       return;
@@ -68,6 +70,10 @@ function StaffFormModal({ staff, onClose, role = 'doctor' }) {
     }
 
     const payload = { ...formData };
+    payload.email = (formData.email || '').trim().toLowerCase();
+    if (!payload.email) {
+      payload.email = formData.username.trim().toLowerCase() + '@' + role + '.com';
+    }
     if (isEdit && !payload.password) delete payload.password; // Don't send empty password on edit
     if (role === 'receptionist') delete payload.specialization;
 
@@ -130,8 +136,18 @@ function StaffFormModal({ staff, onClose, role = 'doctor' }) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
               <div className="form-group">
                 <label className="form-label" style={{ fontWeight: 700, color: 'var(--clr-text-muted)' }}>Username</label>
-                <input className="form-input" placeholder="jsmith" required disabled={isEdit}
-                  value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} />
+                <input className="form-input" placeholder="jsmith" required 
+                  value={formData.username} onChange={e => {
+                    const val = e.target.value;
+                    setFormData(prev => {
+                      const updated = { ...prev, username: val };
+                      const oldGenerated = prev.username.trim() ? `${prev.username.trim().toLowerCase()}@${prev.role}.com` : '';
+                      if (!prev.email || prev.email === oldGenerated || prev.email === `username@${prev.role}.com`) {
+                        updated.email = val.trim() ? `${val.trim().toLowerCase()}@${prev.role}.com` : '';
+                      }
+                      return updated;
+                    });
+                  }} />
               </div>
               <div className="form-group">
                 <label className="form-label" style={{ fontWeight: 700, color: 'var(--clr-text-muted)' }}>{isEdit ? 'New Password (Optional)' : 'Password'}</label>
@@ -145,13 +161,24 @@ function StaffFormModal({ staff, onClose, role = 'doctor' }) {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
               <div className="form-group">
-                <label className="form-label" style={{ fontWeight: 700, color: 'var(--clr-text-muted)' }}>Email Address</label>
+                <label className="form-label" style={{ fontWeight: 700, color: 'var(--clr-text-muted)' }}>Clinic Email (used for login)</label>
                 <div style={{ position: 'relative' }}>
                   <Mail size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--clr-primary)' }} />
-                  <input className="form-input" style={{ paddingLeft: 42 }} type="email" placeholder="jane@clinic.com" required 
+                  <input className="form-input" style={{ paddingLeft: 42, fontWeight: 600 }} type="email" placeholder={`username@${formData.role}.com`}
                     value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
                 </div>
               </div>
+              <div className="form-group">
+                <label className="form-label" style={{ fontWeight: 700, color: 'var(--clr-text-muted)' }}>Personal Email (used for recovery)</label>
+                <div style={{ position: 'relative' }}>
+                  <Mail size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--clr-primary)' }} />
+                  <input className="form-input" style={{ paddingLeft: 42 }} type="email" placeholder="personal@example.com" required 
+                    value={formData.personal_email} onChange={e => setFormData({...formData, personal_email: e.target.value})} />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
               <div className="form-group">
                 <label className="form-label" style={{ fontWeight: 700, color: 'var(--clr-text-muted)' }}>Phone Number</label>
                 <div style={{ position: 'relative' }}>
@@ -160,18 +187,17 @@ function StaffFormModal({ staff, onClose, role = 'doctor' }) {
                     value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
                 </div>
               </div>
-            </div>
-
-            {role === 'doctor' && (
-              <div className="form-group">
-                <label className="form-label" style={{ fontWeight: 700, color: 'var(--clr-text-muted)' }}>Specialization</label>
-                <div style={{ position: 'relative' }}>
-                  <Stethoscope size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--clr-primary)' }} />
-                  <input className="form-input" style={{ paddingLeft: 42 }} placeholder="e.g. Orthodontics, Periodontics" required 
-                    value={formData.specialization} onChange={e => setFormData({...formData, specialization: e.target.value})} />
+              {role === 'doctor' && (
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 700, color: 'var(--clr-text-muted)' }}>Specialization</label>
+                  <div style={{ position: 'relative' }}>
+                    <Stethoscope size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--clr-primary)' }} />
+                    <input className="form-input" style={{ paddingLeft: 42 }} placeholder="e.g. Orthodontics, Periodontics" required 
+                      value={formData.specialization} onChange={e => setFormData({...formData, specialization: e.target.value})} />
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           <div style={{ display: 'flex', gap: 16, marginTop: 40 }}>
@@ -217,9 +243,14 @@ function DoctorCard({ doc, onEdit, onDelete }) {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '16px 0', borderTop: '1px solid #f1f5f9' }}>
-         <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.85rem', color: 'var(--clr-text-muted)' }}>
+         <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.85rem', color: 'var(--clr-text-muted)' }} title="Clinic Email">
             <Mail size={14} style={{ color: 'var(--clr-primary)' }} /> {doc.email}
          </div>
+         {doc.personal_email && (
+           <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.85rem', color: 'var(--clr-text-muted)' }} title="Personal Email">
+              <Mail size={14} style={{ color: '#94a3b8' }} /> {doc.personal_email}
+           </div>
+         )}
          <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.85rem', color: 'var(--clr-text-muted)' }}>
             <Phone size={14} style={{ color: 'var(--clr-primary)' }} /> {doc.phone || 'No phone'}
          </div>

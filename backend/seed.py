@@ -35,21 +35,21 @@ def seed_db():
                 username="doctor1",
                 hashed_password=pwd_context.hash("password123"),
                 full_name="DR Yehia El-ameir",
-                email="sarah.m@smartclinic.com",
+                email="doctor1@clinic.com",
                 role="doctor"
             ),
             models.User(
                 username="admin",
                 hashed_password=pwd_context.hash("password123"),
                 full_name="Clinic Admin",
-                email="admin@smartclinic.com",
+                email="admin@clinic.com",
                 role="admin"
             ),
             models.User(
                 username="receptionist1",
                 hashed_password=pwd_context.hash("password123"),
                 full_name="Front Desk",
-                email="frontdesk@smartclinic.com",
+                email="receptionist1@clinic.com",
                 role="receptionist"
             ),
             models.User(

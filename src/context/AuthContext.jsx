@@ -14,20 +14,21 @@ export function AuthProvider({ children }) {
       });
       if (!response.ok) throw new Error('Token invalid or expired');
       const me = await response.json();
-      setUser({ 
+      const userData = { 
         name: me.full_name, 
         role: me.role, 
         id: me.id, 
         email: me.email,
         phone: me.phone,
         specialization: me.specialization
-      });
-      return true;
+      };
+      setUser(userData);
+      return userData;
     } catch (err) {
       console.error("Auth persistence error:", err);
       localStorage.removeItem('clinic_token');
       setUser(null);
-      return false;
+      return null;
     }
   };
 
@@ -60,7 +61,50 @@ export function AuthProvider({ children }) {
       return await fetchMe(data.access_token);
     } catch (err) {
       console.error("Auth error:", err);
-      return false;
+      return null;
+    }
+  };
+  
+  const register = async (payload) => {
+    try {
+      const response = await fetch('http://localhost:8000/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.detail || 'Registration failed');
+      }
+
+      return await response.json();
+    } catch (err) {
+      console.error("Registration error:", err);
+      throw err;
+    }
+  };
+
+  const verify = async (payload) => {
+    try {
+      const response = await fetch('http://localhost:8000/api/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.detail || 'Verification failed');
+      }
+
+      const data = await response.json();
+      localStorage.setItem('clinic_token', data.access_token);
+      
+      return await fetchMe(data.access_token);
+    } catch (err) {
+      console.error("Verification error:", err);
+      throw err;
     }
   };
   
@@ -70,7 +114,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, logout, register, verify, loading }}>
       {children}
     </AuthContext.Provider>
   );

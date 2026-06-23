@@ -24,7 +24,15 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 import models
 import ai_prompt
+import pending_store
 from database import engine, get_db, Base, SessionLocal
+
+def get_clinic_email(username: str, role: str) -> str:
+    clean = "".join(c for c in username.replace(" ", "_") if c.isalnum() or c == "_").lower()
+    if not clean:
+        clean = "user"
+    return f"{clean}@{role.lower()}.com"
+
 
 # ── Initialization ───────────────────────────────────────────────────────────
 Base.metadata.create_all(bind=engine)
@@ -120,15 +128,19 @@ class UserCreate(BaseModel):
     role: str # doctor or receptionist
     phone: Optional[str] = None
     specialization: Optional[str] = None
+    personal_email: Optional[str] = None
+
 
 class UserStaffUpdate(BaseModel):
     full_name: Optional[str] = None
+    username: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
     specialization: Optional[str] = None
     role: Optional[str] = None
     is_active: Optional[int] = None
     password: Optional[str] = None
+    personal_email: Optional[str] = None
 
 
 class PatientCreate(BaseModel):
@@ -246,6 +258,9 @@ def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    if pending_store.is_token_blacklisted(token):
+        raise credentials_exception
+        
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
@@ -258,6 +273,7 @@ def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_
     if user is None:
         raise credentials_exception
     return user
+
 
 # ── Background Tasks ────────────────────────────────────────────────────────
 def generate_clinical_report_task(patient_id: int):
@@ -301,26 +317,31 @@ def bootstrap_default_users():
                 username="doctor1",
                 hashed_password=pwd_context.hash("password123"),
                 full_name="DR Yehia El-ameir",
-                email="sarah.m@smartclinic.com",
+                email="doctor1@doctor.com",
                 role="doctor"
             ),
             models.User(
                 username="admin",
                 hashed_password=pwd_context.hash("password123"),
                 full_name="Clinic Admin",
-                email="admin@smartclinic.com",
+                email="admin@admin.com",
                 role="admin"
             ),
             models.User(
                 username="receptionist1",
                 hashed_password=pwd_context.hash("password123"),
                 full_name="Front Desk",
-                email="frontdesk@smartclinic.com",
+                email="receptionist1@receptionist.com",
                 role="receptionist"
             ),
         ]
         db.add_all(demo_users)
         db.commit()
+
+        # Seed default mappings
+        pending_store.save_email_mapping("doctor1@doctor.com", "doctor1@clinic.com")
+        pending_store.save_email_mapping("admin@admin.com", "admin@clinic.com")
+        pending_store.save_email_mapping("receptionist1@receptionist.com", "receptionist1@clinic.com")
 
         # Add initial notifications
         if db.query(models.Notification).count() == 0:
@@ -336,7 +357,7 @@ def bootstrap_default_users():
         if db.query(models.ClinicSettings).count() == 0:
             default_settings = models.ClinicSettings(
                 name="Smart Dental Clinic",
-                email="admin@smartclinic.com",
+                email="info@smartclinic.com",
                 phone="+1 555-9000",
                 address="1200 Health Blvd, Suite 400, New York, NY 10001",
                 working_hours="09:00 - 17:00",
@@ -354,22 +375,403 @@ def bootstrap_default_users():
     finally:
         db.close()
 
+def migrate_existing_users_to_clinic_emails(db: Session):
+    """
+    Ensures all existing users in the main DB have their email set to their auto-generated clinic email.
+    Saves their old email as their personal email in the mapping table.
+    """
+    try:
+        users = db.query(models.User).all()
+        for u in users:
+            role = u.role or "doctor"
+            clinic_email = get_clinic_email(u.username, role)
+            
+            # Check if there is an existing mapping
+            personal_email = pending_store.get_personal_email_by_clinic_email(clinic_email)
+            if not personal_email:
+                old_email = u.email
+                if old_email and "@" in old_email:
+                    personal_email = old_email
+                else:
+                    personal_email = f"{u.username.replace(' ', '_').lower()}@personal.com"
+                
+                # Save mapping
+                pending_store.save_email_mapping(clinic_email, personal_email)
+            
+            # Update user email in DB to the clinic email
+            if u.email != clinic_email:
+                u.email = clinic_email
+                logger.info(f"Migrated user '{u.username}' email to clinic email '{clinic_email}'")
+        
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to migrate existing users to clinic emails: {e}")
+
 @app.on_event("startup")
 def startup_bootstrap():
     bootstrap_default_users()
+    db = SessionLocal()
+    try:
+        migrate_existing_users_to_clinic_emails(db)
+        pending_store.cleanup_expired_records()
+    finally:
+        db.close()
+
 
 # ── Authentication Endpoints ─────────────────────────────────────────────────
+def send_verification_email(personal_email: str, clinic_email: str, code: str):
+    target_email = "yazzedstd1@gmail.com" # TEST MODE: redirect all emails
+    email_content = (
+        f"\n================================================================================\n"
+        f"Subject: Verify Your Smart Dental Clinic Account\n"
+        f"To: {target_email} (Redirected from: {personal_email})\n\n"
+        f"Hi there,\n\n"
+        f"You are registering a new clinic account with the username: {clinic_email}.\n"
+        f"Please use the following 6-digit verification code to complete your signup:\n\n"
+        f"    --->   {code}   <---\n\n"
+        f"This code will expire in 5 minutes.\n"
+        f"================================================================================\n"
+    )
+    logger.info(email_content)
+    print(email_content, flush=True)
+
+class VerifyPayload(BaseModel):
+    code: str
+    personal_email: Optional[str] = None
+    username: Optional[str] = None
+
 @app.post("/api/auth/login", response_model=Token)
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.username == form_data.username).first()
-    if not user or not pwd_context.verify(form_data.password, user.hashed_password):
-        raise HTTPException(status_code=400, detail="Incorrect username or password")
+async def login(request: Request, db: Session = Depends(get_db)):
+    content_type = request.headers.get("content-type", "")
+    email_val = None
+    password_val = None
+    
+    if "application/json" in content_type:
+        try:
+            body = await request.json()
+            email_val = body.get("email") or body.get("username")
+            password_val = body.get("password")
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid JSON payload")
+    else:
+        try:
+            form_data = await request.form()
+            email_val = form_data.get("username") or form_data.get("email")
+            password_val = form_data.get("password")
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid form data")
+            
+    if not email_val or not password_val:
+        raise HTTPException(status_code=400, detail="Invalid credentials")
+        
+    clinic_email = email_val.strip().lower()
+    
+    # Reject login if user tries Personal Email
+    if "@" not in clinic_email or any(clinic_email.endswith(domain) for domain in ["@gmail.com", "@yahoo.com", "@outlook.com", "@hotmail.com"]):
+        raise HTTPException(status_code=400, detail="Invalid credentials")
+        
+    user = db.query(models.User).filter(
+        func.lower(models.User.email) == clinic_email
+    ).first()
+    
+    if not user or not pwd_context.verify(password_val, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Invalid credentials")
     
     access_token = jwt.encode(
         {"sub": user.username, "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)},
         SECRET_KEY, algorithm=ALGORITHM
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+@app.post("/api/auth/register")
+def register(payload: UserCreate, db: Session = Depends(get_db)):
+    import re
+    import secrets
+    
+    # 1. Role must be doctor or receptionist ONLY for standard registration
+    role_clean = payload.role.strip().lower()
+    if role_clean not in ["doctor", "receptionist"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Registration is only allowed for doctor or receptionist accounts."
+        )
+        
+    # 2. Username Normalization and Regex Validation
+    username_clean = payload.username.strip().lower()
+    if not re.match(r"^[a-zA-Z0-9_]+$", username_clean):
+        raise HTTPException(
+            status_code=400,
+            detail="Username must contain only letters, numbers, or underscores"
+        )
+        
+    # 3. Password Validation
+    if len(payload.password) < 6:
+        raise HTTPException(
+            status_code=400,
+            detail="Password must be at least 6 characters long"
+        )
+        
+    # 4. Personal Email Format Validation
+    personal_email_clean = payload.personal_email.strip().lower() if payload.personal_email else None
+    if not personal_email_clean:
+        if payload.email and not any(payload.email.strip().lower().endswith(f"@{r}.com") for r in ["doctor", "receptionist", "admin"]):
+            personal_email_clean = payload.email.strip().lower()
+        else:
+            personal_email_clean = f"{username_clean}@personal.com"
+            
+    if not re.match(r"[^@]+@[^@]+\.[^@]+", personal_email_clean):
+        raise HTTPException(status_code=400, detail="Invalid email format")
+            
+    # 5. Clinic Email Generation
+    clinic_email = get_clinic_email(username_clean, role_clean)
+    
+    # 6. Duplicate Validation (Case-insensitive)
+    existing_user = db.query(models.User).filter(
+        (func.lower(models.User.username) == username_clean) |
+        (func.lower(models.User.email) == clinic_email)
+    ).first()
+    
+    if existing_user or pending_store.is_personal_email_exists(personal_email_clean) or pending_store.is_username_or_email_pending(username_clean, personal_email_clean):
+        raise HTTPException(status_code=400, detail="Account already exists")
+        
+    # 7. Generate secure 6-digit verification code
+    verification_code = "".join(secrets.choice("0123456789") for _ in range(6))
+    
+    # Hash password securely
+    hashed_pwd = pwd_context.hash(payload.password)
+    
+    # Save pending registration details
+    pending_store.save_pending_registration(
+        personal_email=personal_email_clean,
+        username=username_clean,
+        password=hashed_pwd,
+        full_name=payload.full_name,
+        role=role_clean,
+        phone=payload.phone,
+        specialization=payload.specialization,
+        verification_code=verification_code
+    )
+    
+    # Send verification code
+    send_verification_email(personal_email_clean, clinic_email, verification_code)
+    
+    return {
+        "status": "success",
+        "message": "Verification code sent to personal email",
+        "personal_email": personal_email_clean
+    }
+
+@app.post("/api/auth/verify", response_model=Token)
+def verify(payload: VerifyPayload, db: Session = Depends(get_db)):
+    code = payload.code.strip()
+    
+    if payload.username:
+        pending = pending_store.get_pending_registration_by_username(payload.username)
+    elif payload.personal_email:
+        pending = pending_store.get_pending_registration(payload.personal_email)
+    else:
+        raise HTTPException(status_code=400, detail="Must provide username or personal_email")
+        
+    if not pending:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification code")
+        
+    personal_email = pending.get("personal_email")
+    
+    # Check attempts count (Max 3)
+    if pending["verification_code"] != code:
+        attempts = pending_store.increment_registration_attempts(personal_email)
+        if attempts >= 3:
+            pending_store.delete_pending_registration(personal_email)
+            raise HTTPException(status_code=400, detail="Too many incorrect attempts. Signup restarted.")
+        raise HTTPException(status_code=400, detail="Invalid verification code")
+        
+    # Check expiration
+    if pending["expires_at"] < datetime.utcnow():
+        pending_store.delete_pending_registration(personal_email)
+        raise HTTPException(status_code=400, detail="Invalid or expired verification code")
+        
+    # Generate clinic email
+    clinic_email = get_clinic_email(pending["username"], pending["role"])
+    
+    # Double check username/email uniqueness in database
+    existing_user = db.query(models.User).filter(
+        (func.lower(models.User.username) == pending["username"]) |
+        (func.lower(models.User.email) == clinic_email)
+    ).first()
+    
+    if existing_user:
+        pending_store.delete_pending_registration(personal_email)
+        raise HTTPException(status_code=400, detail="Account already exists")
+        
+    # Create the user account
+    new_user = models.User(
+        username=pending["username"],
+        hashed_password=pending["password"], # Already hashed
+        full_name=pending["full_name"],
+        email=clinic_email,
+        role=pending["role"],
+        phone=pending["phone"],
+        specialization=pending["specialization"],
+        is_active=1
+    )
+    
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    
+    # Save mapping permanently
+    pending_store.save_email_mapping(clinic_email, personal_email)
+    
+    # Delete pending registration entry
+    pending_store.delete_pending_registration(personal_email)
+    
+    # Generate access token
+    access_token = jwt.encode(
+        {"sub": new_user.username, "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)},
+        SECRET_KEY, algorithm=ALGORITHM
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
+
+class ForgotPasswordPayload(BaseModel):
+    clinic_email: str
+
+class ResetPasswordPayload(BaseModel):
+    token: str
+    new_password: str
+    clinic_email: Optional[str] = None
+
+def send_reset_password_email(personal_email: str, clinic_email: str, token: str):
+    target_email = "yazzedstd1@gmail.com" # TEST MODE: redirect all emails
+    email_content = (
+        f"\n================================================================================\n"
+        f"Subject: Reset your password for {clinic_email}\n"
+        f"To: {target_email} (Redirected from: {personal_email})\n\n"
+        f"Hello,\n\n"
+        f"We received a request to reset your password for the clinic account identity: {clinic_email}.\n"
+        f"Please use the following 6-digit code to complete your password reset:\n\n"
+        f"    --->   {token}   <---\n\n"
+        f"This code will expire in 5 minutes.\n"
+        f"================================================================================\n"
+    )
+    logger.info(email_content)
+    print(email_content, flush=True)
+
+@app.post("/api/auth/logout")
+def logout(token: str = Depends(oauth2_scheme)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        exp = payload.get("exp")
+        if exp:
+            expires_at = datetime.utcfromtimestamp(exp)
+        else:
+            expires_at = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        pending_store.blacklist_token(token, expires_at)
+    except JWTError:
+        pass
+    return {"status": "success", "message": "Successfully logged out"}
+
+@app.post("/api/auth/forgot-password")
+def forgot_password(payload: ForgotPasswordPayload, db: Session = Depends(get_db)):
+    clinic_email = payload.clinic_email.strip().lower()
+    
+    # ALWAYS return standard reply for privacy
+    reply = {
+        "status": "success",
+        "message": "If this account exists, a verification code has been sent"
+    }
+    
+    # Case-insensitive lookup on clinic email
+    user = db.query(models.User).filter(
+        func.lower(models.User.email) == clinic_email
+    ).first()
+    
+    if not user:
+        return reply
+        
+    personal_email = pending_store.get_personal_email_by_clinic_email(user.email)
+    if not personal_email:
+        personal_email = f"{user.username.replace(' ', '_').lower()}@personal.com"
+        pending_store.save_email_mapping(user.email, personal_email)
+        
+    import secrets
+    # 6-digit reset code
+    code = "".join(secrets.choice("0123456789") for _ in range(6))
+    pending_store.save_password_reset(user.email, personal_email, code)
+    
+    send_reset_password_email(personal_email, user.email, code)
+    
+    # Keep personal_email in response strictly for testing verification if needed
+    reply["personal_email"] = personal_email
+    return reply
+
+@app.post("/api/auth/reset-password")
+def reset_password(payload: ResetPasswordPayload, db: Session = Depends(get_db)):
+    if len(payload.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters long")
+        
+    # Attempt Protection: Lookup reset request by token (which is the 6-digit code)
+    # If clinic_email is provided, we map reset request to it to verify attempts
+    reset_record = None
+    if payload.clinic_email:
+        # Search resets to see if the clinic email has a reset request
+        import sqlite3
+        conn = sqlite3.connect(pending_store.DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT reset_token, personal_email, expires_at, attempts FROM password_resets WHERE clinic_email = ?", (payload.clinic_email.strip().lower(),))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            reset_record = {
+                "reset_token": row[0],
+                "clinic_email": payload.clinic_email.strip().lower(),
+                "personal_email": row[1],
+                "expires_at": datetime.fromisoformat(row[2]) if isinstance(row[2], str) else row[2],
+                "attempts": row[3]
+            }
+            
+    if not reset_record:
+        # Fallback to direct lookup by token (code) if no clinic_email was provided
+        reset_record = pending_store.get_password_reset(payload.token)
+        
+    if not reset_record:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification code")
+        
+    # Check attempts count (Max 3)
+    if reset_record.get("reset_token") != payload.token:
+        # Increment attempts
+        attempts = pending_store.increment_reset_attempts(reset_record["reset_token"])
+        if attempts >= 3:
+            pending_store.delete_password_reset(reset_record["reset_token"])
+            raise HTTPException(status_code=400, detail="Too many incorrect attempts. Password reset request expired.")
+        raise HTTPException(status_code=400, detail="Invalid verification code")
+        
+    # Check expiry
+    if reset_record["expires_at"] < datetime.utcnow():
+        pending_store.delete_password_reset(reset_record["reset_token"])
+        raise HTTPException(status_code=400, detail="Invalid or expired verification code")
+        
+    user = db.query(models.User).filter(
+        func.lower(models.User.email) == reset_record["clinic_email"]
+    ).first()
+    
+    if not user:
+        raise HTTPException(status_code=400, detail="User not found")
+        
+    if len(payload.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters long")
+        
+    user.hashed_password = pwd_context.hash(payload.new_password)
+    db.commit()
+    
+    pending_store.delete_password_reset(payload.token)
+    
+    return {"status": "success", "message": "Password successfully updated"}
+
+
 
 @app.get("/api/auth/me", response_model=UserProfile)
 def get_me(user: models.User = Depends(get_current_user)):
@@ -718,6 +1120,7 @@ def get_doctors(db: Session = Depends(get_db), current_user: models.User = Depen
         "username": d.username,
         "role": d.role,
         "email": d.email,
+        "personal_email": pending_store.get_personal_email_by_clinic_email(d.email),
         "phone": d.phone,
         "specialization": d.specialization,
         "status": "online",
@@ -733,27 +1136,58 @@ def get_receptionists(db: Session = Depends(get_db), current_user: models.User =
         "username": r.username,
         "role": r.role,
         "email": r.email,
+        "personal_email": pending_store.get_personal_email_by_clinic_email(r.email),
         "phone": r.phone,
         "status": "online"
     } for r in receptionists]
 
 @app.post("/api/staff")
 def create_staff(payload: UserCreate, db: Session = Depends(get_db), user: models.User = Depends(require_role('admin'))):
-    if payload.role not in ["doctor", "receptionist"]:
-        raise HTTPException(status_code=400, detail="Invalid role. Must be doctor or receptionist.")
+    role_clean = payload.role.strip().lower()
+    if role_clean not in ["doctor", "receptionist", "admin"]:
+        raise HTTPException(status_code=400, detail="Invalid role. Must be doctor, receptionist, or admin.")
     
-    existing = db.query(models.User).filter((models.User.username == payload.username) | (models.User.email == payload.email)).first()
+    username_clean = payload.username.strip().lower()
+    if payload.email and "@" in payload.email:
+        email_cand = payload.email.strip().lower()
+        if any(email_cand.endswith(f"@{r}.com") for r in ["doctor", "receptionist", "admin"]) or payload.personal_email:
+            clinic_email = email_cand
+        else:
+            clinic_email = get_clinic_email(username_clean, role_clean)
+    else:
+        clinic_email = get_clinic_email(username_clean, role_clean)
+    
+    # Check if username OR clinic_email already exists in users DB
+    existing = db.query(models.User).filter(
+        (func.lower(models.User.username) == username_clean) | 
+        (func.lower(models.User.email) == clinic_email)
+    ).first()
     if existing:
-        raise HTTPException(status_code=400, detail="Username or Email already exists")
+        raise HTTPException(status_code=400, detail="Username or Clinic Email already exists")
+        
+    # Get personal email from payload
+    personal_email_clean = payload.personal_email.strip().lower() if payload.personal_email else None
+    if not personal_email_clean:
+        if payload.email and not any(payload.email.strip().lower().endswith(f"@{r}.com") for r in ["doctor", "receptionist", "admin"]):
+            personal_email_clean = payload.email.strip().lower()
+        else:
+            personal_email_clean = f"{username_clean}@personal.com"
+            
+    # Check if personal email is already mapped to another user
+    if pending_store.is_personal_email_exists(personal_email_clean):
+        raise HTTPException(status_code=400, detail="Personal email already exists")
+        
+    # Save mapping permanently
+    pending_store.save_email_mapping(clinic_email, personal_email_clean)
     
     new_user = models.User(
-        username=payload.username,
+        username=username_clean,
         hashed_password=pwd_context.hash(payload.password),
         full_name=payload.full_name,
-        email=payload.email,
-        role=payload.role,
+        email=clinic_email,
+        role=role_clean,
         phone=payload.phone,
-        specialization=payload.specialization if payload.role == "doctor" else None,
+        specialization=payload.specialization if role_clean == "doctor" else None,
         is_active=1
     )
     db.add(new_user)
@@ -767,10 +1201,77 @@ def update_staff(user_id: int, payload: UserStaffUpdate, db: Session = Depends(g
     if not target:
         raise HTTPException(status_code=404, detail="Staff member not found")
     
+    new_username = payload.username.strip().lower() if payload.username is not None else target.username
+    new_role = payload.role.strip().lower() if payload.role is not None else target.role
+    
+    # Process potential inputs
+    email_payload = payload.email.strip().lower() if payload.email is not None else None
+    personal_payload = payload.personal_email.strip().lower() if payload.personal_email is not None else None
+    
+    # Disambiguate if email_payload was passed as personal email (backward compatibility)
+    if email_payload and not personal_payload:
+        if not any(email_payload.endswith(f"@{r}.com") for r in ["doctor", "receptionist", "admin"]):
+            personal_payload = email_payload
+            email_payload = None
+
+    # Determine the final clinic email
+    if email_payload:
+        new_clinic_email = email_payload
+    elif payload.username is not None or payload.role is not None:
+        new_clinic_email = get_clinic_email(new_username, new_role)
+    else:
+        new_clinic_email = target.email
+
+    # Validate Username uniqueness
+    if new_username != target.username:
+        existing_user = db.query(models.User).filter(
+            func.lower(models.User.username) == new_username,
+            models.User.id != target.id
+        ).first()
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Username already exists")
+
+    # Validate Clinic Email uniqueness
+    if new_clinic_email.lower() != target.email.lower():
+        existing_email = db.query(models.User).filter(
+            func.lower(models.User.email) == new_clinic_email,
+            models.User.id != target.id
+        ).first()
+        if existing_email:
+            raise HTTPException(status_code=400, detail="Clinic email already exists")
+
+        # Migrate email mapping in pending_users.db if it exists
+        existing_personal = pending_store.get_personal_email_by_clinic_email(target.email)
+        if existing_personal:
+            final_personal = personal_payload if personal_payload else existing_personal
+            
+            # Enforce uniqueness of personal email mapped to new clinic email
+            import sqlite3
+            conn = sqlite3.connect(pending_store.DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute("SELECT clinic_email FROM email_mappings WHERE personal_email = ?", (final_personal,))
+            row = cursor.fetchone()
+            conn.close()
+            if row and row[0].strip().lower() != target.email.strip().lower() and row[0].strip().lower() != new_clinic_email.lower():
+                raise HTTPException(status_code=400, detail="Personal email already in use by another account")
+
+            pending_store.save_email_mapping(new_clinic_email, final_personal)
+            
+            conn = sqlite3.connect(pending_store.DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM email_mappings WHERE clinic_email = ?", (target.email.strip().lower(),))
+            conn.commit()
+            conn.close()
+            
+            personal_payload = None  # Handled
+
+    # Save target username, role, clinic email
+    target.username = new_username
+    target.role = new_role
+    target.email = new_clinic_email
+
     if payload.full_name is not None: target.full_name = payload.full_name
-    if payload.email is not None: target.email = payload.email
     if payload.phone is not None: target.phone = payload.phone
-    if payload.role is not None: target.role = payload.role
     if payload.is_active is not None: target.is_active = payload.is_active
     
     if payload.password is not None and payload.password.strip() != "":
@@ -778,9 +1279,25 @@ def update_staff(user_id: int, payload: UserStaffUpdate, db: Session = Depends(g
     
     if payload.specialization is not None:
         target.specialization = payload.specialization if target.role == "doctor" else None
+    if target.role != "doctor":
+        target.specialization = None
+        
+    if personal_payload:
+        # Enforce uniqueness of personal email
+        import sqlite3
+        conn = sqlite3.connect(pending_store.DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT clinic_email FROM email_mappings WHERE personal_email = ?", (personal_payload,))
+        row = cursor.fetchone()
+        conn.close()
+        if row and row[0].strip().lower() != target.email.strip().lower():
+            raise HTTPException(status_code=400, detail="Personal email already in use by another account")
+        
+        pending_store.save_email_mapping(target.email, personal_payload)
     
     db.commit()
     return {"status": "success"}
+
 
 @app.delete("/api/staff/{user_id}")
 def delete_staff(user_id: int, db: Session = Depends(get_db), user: models.User = Depends(require_role('admin'))):
@@ -960,13 +1477,20 @@ def generate_pdf_report_file(report: models.ClinicalReport, db: Session):
             alignment=1
         )
 
+        # Fetch dynamic clinic settings from database if available
+        clinic_settings = db.query(models.ClinicSettings).first()
+        clinic_name = clinic_settings.name if (clinic_settings and clinic_settings.name) else "SMART DENTAL CLINIC"
+        clinic_email = clinic_settings.email if (clinic_settings and clinic_settings.email) else "info@smartclinic.com"
+        clinic_phone = clinic_settings.phone if (clinic_settings and clinic_settings.phone) else "+1 555-9000"
+        clinic_address = clinic_settings.address if (clinic_settings and clinic_settings.address) else "1200 Health Blvd, NY"
+
         elements = []
         
         # 1. Header Banner
         header_data = [
             [
-                Paragraph("SMART DENTAL CLINIC", title_style),
-                Paragraph("<b>Email:</b> info@smartclinic.com<br/><b>Phone:</b> +1 555-9000<br/><b>Address:</b> 1200 Health Blvd, NY", subtitle_style)
+                Paragraph(clinic_name.upper(), title_style),
+                Paragraph(f"<b>Email:</b> {clinic_email}<br/><b>Phone:</b> {clinic_phone}<br/><b>Address:</b> {clinic_address}", subtitle_style)
             ]
         ]
         header_table = Table(header_data, colWidths=[300, 240])
@@ -1430,6 +1954,28 @@ def update_profile_settings(payload: UserProfileUpdate, db: Session = Depends(ge
         user.hashed_password = pwd_context.hash(update_data["password"])
         del update_data["password"]
     
+    if "email" in update_data and update_data["email"]:
+        email_clean = update_data["email"].strip().lower()
+        clinic_email = user.email
+        
+        # Check if the personal email is already mapped to another user
+        existing_mapping_owner = None
+        # Retrieve all mappings to find if email_clean is used by another clinic email
+        import sqlite3
+        import pending_store
+        conn = sqlite3.connect(pending_store.DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT clinic_email FROM email_mappings WHERE personal_email = ? AND clinic_email != ?", (email_clean, clinic_email))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            raise HTTPException(status_code=400, detail="Email address is already in use by another account")
+            
+        # Save mapping
+        pending_store.save_email_mapping(clinic_email, email_clean)
+        # Prevent updating target.email to personal email
+        del update_data["email"]
+        
     for key, value in update_data.items():
         setattr(user, key, value)
     
@@ -1440,10 +1986,11 @@ def update_profile_settings(payload: UserProfileUpdate, db: Session = Depends(ge
         "username": user.username,
         "role": user.role,
         "full_name": user.full_name,
-        "email": user.email,
+        "email": user.email, # Clinic email is returned
         "phone": user.phone,
         "specialization": user.specialization
     }
+
 
 # ── Clinical Symptoms Endpoints ──────────────────────────────────────────────
 @app.get("/api/clinical/symptoms", response_model=List[SymptomResponse])
