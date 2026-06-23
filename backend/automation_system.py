@@ -26,6 +26,16 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+# Reconfigure standard streams to avoid UnicodeEncodeError on Windows terminals
+if sys.platform.startswith("win"):
+    try:
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")
+        if hasattr(sys.stderr, "reconfigure"):
+            sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace")
+    except Exception:
+        pass
+
 # Setup paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_FILE_PATH = os.path.join(BASE_DIR, "automation.log")
