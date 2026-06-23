@@ -120,6 +120,7 @@ export default function Login() {
                 type="email" 
                 required 
                 className="form-input" 
+                style={{ borderRadius: '12px' }}
                 placeholder="demo@clinic.com" 
                 defaultValue="demo@clinic.com"
                 disabled={loadingState}
@@ -138,12 +139,13 @@ export default function Login() {
                 className="form-input" 
                 placeholder="Enter your password" 
                 defaultValue="password123"
-                style={{ paddingRight: 40 }}
+                style={{ paddingRight: 40, borderRadius: '12px' }}
                 disabled={loadingState}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
+                aria-label="Toggle password visibility"
                 style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--clr-text-muted, #6b7280)', display: 'flex', alignItems: 'center', padding: 0, zIndex: 10 }}
                 disabled={loadingState}
               >

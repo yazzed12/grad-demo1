@@ -25,6 +25,8 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import models
 import ai_prompt
 import pending_store
+import email_service
+import hashlib
 from database import engine, get_db, Base, SessionLocal
 
 def get_clinic_email(username: str, role: str) -> str:
@@ -421,20 +423,8 @@ def startup_bootstrap():
 
 # ── Authentication Endpoints ─────────────────────────────────────────────────
 def send_verification_email(personal_email: str, clinic_email: str, code: str):
-    target_email = "yazzedstd1@gmail.com" # TEST MODE: redirect all emails
-    email_content = (
-        f"\n================================================================================\n"
-        f"Subject: Verify Your Smart Dental Clinic Account\n"
-        f"To: {target_email} (Redirected from: {personal_email})\n\n"
-        f"Hi there,\n\n"
-        f"You are registering a new clinic account with the username: {clinic_email}.\n"
-        f"Please use the following 6-digit verification code to complete your signup:\n\n"
-        f"    --->   {code}   <---\n\n"
-        f"This code will expire in 5 minutes.\n"
-        f"================================================================================\n"
-    )
-    logger.info(email_content)
-    print(email_content, flush=True)
+    pending_store.log_email_sent(personal_email)
+    email_service.send_verification_email(personal_email, code)
 
 class VerifyPayload(BaseModel):
     code: str
@@ -507,10 +497,10 @@ def register(payload: UserCreate, db: Session = Depends(get_db)):
         )
         
     # 3. Password Validation
-    if len(payload.password) < 6:
+    if len(payload.password) < 8 or not any(c.isupper() for c in payload.password) or not any(c.isdigit() for c in payload.password):
         raise HTTPException(
             status_code=400,
-            detail="Password must be at least 6 characters long"
+            detail="Password must be at least 8 characters long and contain at least one uppercase letter and one number"
         )
         
     # 4. Personal Email Format Validation
@@ -527,17 +517,34 @@ def register(payload: UserCreate, db: Session = Depends(get_db)):
     # 5. Clinic Email Generation
     clinic_email = get_clinic_email(username_clean, role_clean)
     
-    # 6. Duplicate Validation (Case-insensitive)
+    # 6. Generic Response
+    reply = {
+        "status": "success",
+        "message": "If an account exists, a code has been sent",
+        "personal_email": personal_email_clean
+    }
+
+    # 7. Rate Limiting Check (3 emails / minute) - Check FIRST to prevent side-channel leaks
+    if pending_store.get_email_sent_count_last_minute(personal_email_clean) >= 3:
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded. Please wait a minute before requesting another email."
+        )
+
+    # 8. Check if account already exists (either active in DB, personal email mapped, or pending registration)
     existing_user = db.query(models.User).filter(
         (func.lower(models.User.username) == username_clean) |
         (func.lower(models.User.email) == clinic_email)
     ).first()
     
-    if existing_user or pending_store.is_personal_email_exists(personal_email_clean) or pending_store.is_username_or_email_pending(username_clean, personal_email_clean):
-        raise HTTPException(status_code=400, detail="Account already exists")
-        
-    # 7. Generate secure 6-digit verification code
+    is_pending = pending_store.is_username_or_email_pending(username_clean, personal_email_clean)
+    
+    if existing_user or pending_store.is_personal_email_exists(personal_email_clean) or is_pending:
+        return reply
+
+    # 9. Generate secure 6-digit verification code
     verification_code = "".join(secrets.choice("0123456789") for _ in range(6))
+    hashed_code = hashlib.sha256(verification_code.encode()).hexdigest()
     
     # Hash password securely
     hashed_pwd = pwd_context.hash(payload.password)
@@ -551,17 +558,13 @@ def register(payload: UserCreate, db: Session = Depends(get_db)):
         role=role_clean,
         phone=payload.phone,
         specialization=payload.specialization,
-        verification_code=verification_code
+        verification_code=hashed_code
     )
     
     # Send verification code
     send_verification_email(personal_email_clean, clinic_email, verification_code)
     
-    return {
-        "status": "success",
-        "message": "Verification code sent to personal email",
-        "personal_email": personal_email_clean
-    }
+    return reply
 
 @app.post("/api/auth/verify", response_model=Token)
 def verify(payload: VerifyPayload, db: Session = Depends(get_db)):
@@ -579,10 +582,11 @@ def verify(payload: VerifyPayload, db: Session = Depends(get_db)):
         
     personal_email = pending.get("personal_email")
     
-    # Check attempts count (Max 3)
-    if pending["verification_code"] != code:
+    # Check attempts count (Max 5)
+    hashed_code = hashlib.sha256(code.encode()).hexdigest()
+    if pending["verification_code"] != hashed_code:
         attempts = pending_store.increment_registration_attempts(personal_email)
-        if attempts >= 3:
+        if attempts >= 5:
             pending_store.delete_pending_registration(personal_email)
             raise HTTPException(status_code=400, detail="Too many incorrect attempts. Signup restarted.")
         raise HTTPException(status_code=400, detail="Invalid verification code")
@@ -645,20 +649,8 @@ class ResetPasswordPayload(BaseModel):
     clinic_email: Optional[str] = None
 
 def send_reset_password_email(personal_email: str, clinic_email: str, token: str):
-    target_email = "yazzedstd1@gmail.com" # TEST MODE: redirect all emails
-    email_content = (
-        f"\n================================================================================\n"
-        f"Subject: Reset your password for {clinic_email}\n"
-        f"To: {target_email} (Redirected from: {personal_email})\n\n"
-        f"Hello,\n\n"
-        f"We received a request to reset your password for the clinic account identity: {clinic_email}.\n"
-        f"Please use the following 6-digit code to complete your password reset:\n\n"
-        f"    --->   {token}   <---\n\n"
-        f"This code will expire in 5 minutes.\n"
-        f"================================================================================\n"
-    )
-    logger.info(email_content)
-    print(email_content, flush=True)
+    pending_store.log_email_sent(personal_email)
+    email_service.send_reset_email(personal_email, token)
 
 @app.post("/api/auth/logout")
 def logout(token: str = Depends(oauth2_scheme)):
@@ -681,8 +673,16 @@ def forgot_password(payload: ForgotPasswordPayload, db: Session = Depends(get_db
     # ALWAYS return standard reply for privacy
     reply = {
         "status": "success",
-        "message": "If this account exists, a verification code has been sent"
+        "message": "If an account exists, a code has been sent"
     }
+    
+    # Rate Limiting Check (3 emails / minute) on clinic email to prevent side-channel leaks
+    if pending_store.get_email_sent_count_last_minute(clinic_email) >= 3:
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded. Please wait a minute before requesting another email."
+        )
+    pending_store.log_email_sent(clinic_email)
     
     # Case-insensitive lookup on clinic email
     user = db.query(models.User).filter(
@@ -697,10 +697,30 @@ def forgot_password(payload: ForgotPasswordPayload, db: Session = Depends(get_db
         personal_email = f"{user.username.replace(' ', '_').lower()}@personal.com"
         pending_store.save_email_mapping(user.email, personal_email)
         
+    # Rate Limiting Check (3 emails / minute) on personal email
+    if pending_store.get_email_sent_count_last_minute(personal_email) >= 3:
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded. Please wait a minute before requesting another email."
+        )
+
     import secrets
     # 6-digit reset code
     code = "".join(secrets.choice("0123456789") for _ in range(6))
-    pending_store.save_password_reset(user.email, personal_email, code)
+    hashed_code = hashlib.sha256(code.encode()).hexdigest()
+    
+    # Invalidate old resets for this user first
+    try:
+        import sqlite3
+        conn = sqlite3.connect(pending_store.DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM password_resets WHERE clinic_email = ?", (user.email.strip().lower(),))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.error(f"Failed to invalidate old reset tokens: {e}")
+
+    pending_store.save_password_reset(user.email, personal_email, hashed_code)
     
     send_reset_password_email(personal_email, user.email, code)
     
@@ -710,11 +730,15 @@ def forgot_password(payload: ForgotPasswordPayload, db: Session = Depends(get_db
 
 @app.post("/api/auth/reset-password")
 def reset_password(payload: ResetPasswordPayload, db: Session = Depends(get_db)):
-    if len(payload.new_password) < 6:
-        raise HTTPException(status_code=400, detail="Password must be at least 6 characters long")
+    if len(payload.new_password) < 8 or not any(c.isupper() for c in payload.new_password) or not any(c.isdigit() for c in payload.new_password):
+        raise HTTPException(
+            status_code=400,
+            detail="Password must be at least 8 characters long and contain at least one uppercase letter and one number"
+        )
         
-    # Attempt Protection: Lookup reset request by token (which is the 6-digit code)
-    # If clinic_email is provided, we map reset request to it to verify attempts
+    hashed_token = hashlib.sha256(payload.token.strip().encode()).hexdigest()
+        
+    # Attempt Protection: Lookup reset request by token
     reset_record = None
     if payload.clinic_email:
         # Search resets to see if the clinic email has a reset request
@@ -735,16 +759,16 @@ def reset_password(payload: ResetPasswordPayload, db: Session = Depends(get_db))
             
     if not reset_record:
         # Fallback to direct lookup by token (code) if no clinic_email was provided
-        reset_record = pending_store.get_password_reset(payload.token)
+        reset_record = pending_store.get_password_reset(hashed_token)
         
     if not reset_record:
         raise HTTPException(status_code=400, detail="Invalid or expired verification code")
         
-    # Check attempts count (Max 3)
-    if reset_record.get("reset_token") != payload.token:
+    # Check attempts count (Max 5)
+    if reset_record.get("reset_token") != hashed_token:
         # Increment attempts
         attempts = pending_store.increment_reset_attempts(reset_record["reset_token"])
-        if attempts >= 3:
+        if attempts >= 5:
             pending_store.delete_password_reset(reset_record["reset_token"])
             raise HTTPException(status_code=400, detail="Too many incorrect attempts. Password reset request expired.")
         raise HTTPException(status_code=400, detail="Invalid verification code")
@@ -761,13 +785,10 @@ def reset_password(payload: ResetPasswordPayload, db: Session = Depends(get_db))
     if not user:
         raise HTTPException(status_code=400, detail="User not found")
         
-    if len(payload.new_password) < 6:
-        raise HTTPException(status_code=400, detail="Password must be at least 6 characters long")
-        
     user.hashed_password = pwd_context.hash(payload.new_password)
     db.commit()
     
-    pending_store.delete_password_reset(payload.token)
+    pending_store.delete_password_reset(reset_record["reset_token"])
     
     return {"status": "success", "message": "Password successfully updated"}
 

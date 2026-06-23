@@ -67,8 +67,8 @@ export default function ForgotPassword() {
       return;
     }
 
-    if (newPassword.length < 6) {
-      setErrorMsg('Password must be at least 6 characters long.');
+    if (newPassword.length < 8) {
+      setErrorMsg('Password must be at least 8 characters long.');
       return;
     }
 
@@ -106,9 +106,9 @@ export default function ForgotPassword() {
 
   // Validators for Step 2
   const isCodeValid = verificationCode.length === 6;
-  const isPasswordValid = newPassword.length >= 6;
+  const isPasswordComplex = newPassword.length >= 8 && /[A-Z]/.test(newPassword) && /[0-9]/.test(newPassword);
   const isPasswordMatch = newPassword === confirmPassword;
-  const isStep2FormValid = isCodeValid && isPasswordValid && isPasswordMatch;
+  const isStep2FormValid = isCodeValid && isPasswordComplex && isPasswordMatch;
 
   return (
     <AuthShell
@@ -166,6 +166,7 @@ export default function ForgotPassword() {
                   type="email"
                   required
                   className="form-input"
+                  style={{ borderRadius: '12px' }}
                   placeholder="username@doctor.com"
                   value={clinicEmail}
                   onChange={(e) => setClinicEmail(e.target.value)}
@@ -185,10 +186,16 @@ export default function ForgotPassword() {
 
         {step === 2 && (
           <form onSubmit={handleResetPassword} className="auth-form">
-            <p style={{ fontSize: '0.85rem', color: 'var(--clr-text-muted, #6b7280)', marginBottom: 14 }}>
-              Enter the 6-digit code sent to your personal recovery email and choose a new password.
-            </p>
-            
+            <div style={{
+              background: '#ecfdf5', border: '1px solid #a7f3d0',
+              borderRadius: '12px', padding: '12px 16px', marginBottom: 16,
+              color: '#065f46', fontSize: '0.85rem', fontWeight: 600,
+              display: 'flex', alignItems: 'center', gap: 10
+            }}>
+              <CheckCircle2 size={18} style={{ flexShrink: 0, color: '#10b981' }} />
+              <span>If an account exists, a reset code has been sent.</span>
+            </div>
+
             <div className="form-group">
               <label className="form-label" htmlFor="reset-code">Verification Code</label>
               <input
@@ -197,7 +204,7 @@ export default function ForgotPassword() {
                 required
                 maxLength={6}
                 className="form-input"
-                style={{ textAlign: 'center', letterSpacing: '0.4rem', fontSize: '1.25rem', fontWeight: 700 }}
+                style={{ textAlign: 'center', letterSpacing: '0.4rem', fontSize: '1.25rem', fontWeight: 700, borderRadius: '12px' }}
                 placeholder="000000"
                 value={verificationCode}
                 onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))}
@@ -212,23 +219,24 @@ export default function ForgotPassword() {
                   id="reset-password"
                   type={showPassword ? "text" : "password"}
                   required
-                  className={`form-input ${newPassword && !isPasswordValid ? 'is-invalid' : ''}`}
-                  style={{ paddingRight: 40 }}
-                  placeholder="Min 6 characters"
+                  className={`form-input ${newPassword && !isPasswordComplex ? 'is-invalid' : ''}`}
+                  style={{ paddingRight: 40, borderRadius: '12px' }}
+                  placeholder="Min 8 characters"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
+                  aria-label="Toggle password visibility"
                   style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--clr-text-muted, #6b7280)', display: 'flex', alignItems: 'center', padding: 0, zIndex: 10 }}
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
-              {newPassword && !isPasswordValid && (
+              {newPassword && !isPasswordComplex && (
                 <span style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: 4, display: 'block' }}>
-                  Must be at least 6 characters.
+                  Must be at least 8 characters, with 1 uppercase letter and 1 number.
                 </span>
               )}
             </div>
@@ -242,7 +250,7 @@ export default function ForgotPassword() {
                   type={showConfirmPassword ? "text" : "password"}
                   required
                   className={`form-input ${confirmPassword && !isPasswordMatch ? 'is-invalid' : ''}`}
-                  style={{ paddingRight: 40 }}
+                  style={{ paddingRight: 40, borderRadius: '12px' }}
                   placeholder="Repeat new password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
@@ -250,6 +258,7 @@ export default function ForgotPassword() {
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  aria-label="Toggle password visibility"
                   style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--clr-text-muted, #6b7280)', display: 'flex', alignItems: 'center', padding: 0, zIndex: 10 }}
                 >
                   {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -262,14 +271,14 @@ export default function ForgotPassword() {
               )}
             </div>
 
-            <button type="submit" className="btn btn-primary auth-submit" style={{ marginTop: 14 }} disabled={loadingState || !isStep2FormValid}>
+            <button type="submit" className="btn btn-primary auth-submit" style={{ marginTop: 14, borderRadius: '12px' }} disabled={loadingState || !isStep2FormValid}>
               {loadingState ? 'Resetting password...' : <><CheckCircle2 size={18} /> Update Password</>}
             </button>
             
             <button
               type="button"
               className="btn"
-              style={{ width: '100%', marginTop: 8, background: 'none', border: '1px solid var(--clr-border, #e5e7eb)', color: 'var(--clr-text, #1f2937)' }}
+              style={{ width: '100%', marginTop: 8, background: 'none', border: '1px solid var(--clr-border, #e5e7eb)', color: 'var(--clr-text, #1f2937)', borderRadius: '12px' }}
               disabled={loadingState}
               onClick={() => {
                 setStep(1);

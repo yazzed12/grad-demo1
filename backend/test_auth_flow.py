@@ -34,24 +34,40 @@ def make_request(path, method="GET", data=None, headers=None):
         return e.code, err_json
 
 def get_db_verification_code(personal_email):
-    # Retrieve directly from pending_users.db
-    db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pending_users.db")
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute("SELECT verification_code FROM pending_registrations WHERE personal_email = ?", (personal_email.lower(),))
-    row = cursor.fetchone()
-    conn.close()
-    return row[0] if row else None
+    # Read from test_emails.json
+    try:
+        test_emails_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_emails.json")
+        if os.path.exists(test_emails_path):
+            with open(test_emails_path, "r") as f:
+                data = json.load(f)
+                entry = data.get(personal_email.strip().lower())
+                if entry:
+                    return entry["code"]
+    except Exception as e:
+        print(f"Error reading test_emails.json: {e}")
+    return None
 
 def get_db_reset_token(clinic_email):
-    # Retrieve directly from pending_users.db
-    db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pending_users.db")
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute("SELECT reset_token FROM password_resets WHERE clinic_email = ?", (clinic_email.lower(),))
-    row = cursor.fetchone()
-    conn.close()
-    return row[0] if row else None
+    # Lookup the personal email from mappings, then read the code from test_emails.json
+    try:
+        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pending_users.db")
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT personal_email FROM email_mappings WHERE clinic_email = ?", (clinic_email.lower(),))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            personal_email = row[0]
+            test_emails_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_emails.json")
+            if os.path.exists(test_emails_path):
+                with open(test_emails_path, "r") as f:
+                    data = json.load(f)
+                    entry = data.get(personal_email.strip().lower())
+                    if entry:
+                        return entry["code"]
+    except Exception as e:
+        print(f"Error getting reset token: {e}")
+    return None
 
 def run_tests():
     print("Starting Integration Tests for Authentication System...")
@@ -60,8 +76,8 @@ def run_tests():
     username = f"tester_{timestamp}"
     personal_email = f"tester_{timestamp}@gmail.com"
     clinic_email = f"{username}@doctor.com"
-    password = "secretpassword123"
-    new_password = "newsecretpassword123"
+    password = "Secretpassword123"
+    new_password = "Newsecretpassword123"
     
     # 1. Register a new doctor
     print("\n--- Test Case 1: Register New Doctor ---")
@@ -88,7 +104,7 @@ def run_tests():
     username_rec_signup = f"rec_signup_{ts_rec_signup}"
     rec_signup_payload = {
         "username": username_rec_signup,
-        "password": "password123",
+        "password": "Password123",
         "full_name": "Receptionist Signup Tester",
         "email": f"{username_rec_signup}@receptionist.com",
         "role": "receptionist",
@@ -103,7 +119,8 @@ def run_tests():
     status_dup, body_dup = make_request("/api/auth/register", "POST", reg_payload)
     print(f"Status: {status_dup}")
     print(f"Response: {body_dup}")
-    assert status_dup == 400, "Should reject duplicate registration"
+    assert status_dup == 200, "Should return 200 for generic privacy response"
+    assert "If an account exists, a code has been sent" in body_dup.get("message", "")
     
     # 3. Retrieve verification code from DB and verify signup
     print("\n--- Test Case 3: Verify Verification Code ---")
@@ -232,7 +249,7 @@ def run_tests():
     
     reg_att_payload = {
         "username": username_att,
-        "password": "password123",
+        "password": "Password123",
         "full_name": "Dr. Attempt Tester",
         "email": clinic_email_att,
         "role": "doctor",
@@ -254,17 +271,29 @@ def run_tests():
     assert status_v2 == 400
     assert body_v2.get("detail") == "Invalid verification code"
     
-    # Third wrong try (Exceeds limit)
+    # Third wrong try
     status_v3, body_v3 = make_request("/api/auth/verify", "POST", {"personal_email": personal_email_att, "code": "000000"})
     print(f"Wrong code 3: Status={status_v3}, Response={body_v3}")
     assert status_v3 == 400
-    assert "Too many incorrect attempts" in body_v3.get("detail")
+    assert body_v3.get("detail") == "Invalid verification code"
     
-    # Fourth try (Already deleted)
+    # Fourth wrong try
     status_v4, body_v4 = make_request("/api/auth/verify", "POST", {"personal_email": personal_email_att, "code": "000000"})
     print(f"Wrong code 4: Status={status_v4}, Response={body_v4}")
     assert status_v4 == 400
-    assert "Invalid or expired" in body_v4.get("detail")
+    assert body_v4.get("detail") == "Invalid verification code"
+    
+    # Fifth wrong try (Exceeds limit)
+    status_v5, body_v5 = make_request("/api/auth/verify", "POST", {"personal_email": personal_email_att, "code": "000000"})
+    print(f"Wrong code 5: Status={status_v5}, Response={body_v5}")
+    assert status_v5 == 400
+    assert "Too many incorrect attempts" in body_v5.get("detail")
+    
+    # Sixth try (Already deleted)
+    status_v6, body_v6 = make_request("/api/auth/verify", "POST", {"personal_email": personal_email_att, "code": "000000"})
+    print(f"Wrong code 6: Status={status_v6}, Response={body_v6}")
+    assert status_v6 == 400
+    assert "Invalid or expired" in body_v6.get("detail")
     
     # 13. Test Reset Attempts Limit
     print("\n--- Test Case 14: Test Reset Password Attempts Limit ---")
@@ -276,7 +305,7 @@ def run_tests():
     # First wrong try (using clinic_email in payload to increment properly)
     reset_wrong_payload = {
         "token": "000000",
-        "new_password": "newpassword123",
+        "new_password": "Newpassword123",
         "clinic_email": clinic_email
     }
     status_r1, body_r1 = make_request("/api/auth/reset-password", "POST", reset_wrong_payload)
@@ -294,13 +323,25 @@ def run_tests():
     status_r3, body_r3 = make_request("/api/auth/reset-password", "POST", reset_wrong_payload)
     print(f"Wrong reset 3: Status={status_r3}, Response={body_r3}")
     assert status_r3 == 400
-    assert "Too many incorrect attempts" in body_r3.get("detail")
+    assert body_r3.get("detail") == "Invalid verification code"
     
-    # Fourth try
+    # Fourth wrong try
     status_r4, body_r4 = make_request("/api/auth/reset-password", "POST", reset_wrong_payload)
     print(f"Wrong reset 4: Status={status_r4}, Response={body_r4}")
     assert status_r4 == 400
-    assert "Invalid or expired" in body_r4.get("detail")
+    assert body_r4.get("detail") == "Invalid verification code"
+    
+    # Fifth wrong try
+    status_r5, body_r5 = make_request("/api/auth/reset-password", "POST", reset_wrong_payload)
+    print(f"Wrong reset 5: Status={status_r5}, Response={body_r5}")
+    assert status_r5 == 400
+    assert "Too many incorrect attempts" in body_r5.get("detail")
+    
+    # Sixth try
+    status_r6, body_r6 = make_request("/api/auth/reset-password", "POST", reset_wrong_payload)
+    print(f"Wrong reset 6: Status={status_r6}, Response={body_r6}")
+    assert status_r6 == 400
+    assert "Invalid or expired" in body_r6.get("detail")
 
     # 14. Test Admin Personal Email Management (Add & Update Staff)
     print("\n--- Test Case 15: Admin Staff Management (Personal Emails) ---")
@@ -325,7 +366,7 @@ def run_tests():
     
     new_staff_payload = {
         "username": rec_username,
-        "password": "password123",
+        "password": "Password123",
         "full_name": "Front Desk Staff",
         "email": rec_clinic,
         "role": "receptionist",

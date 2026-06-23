@@ -54,6 +54,14 @@ def init_pending_db():
         )
     """)
     
+    # 5. Email sent times table (for rate limiting)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS email_sent_times (
+            email TEXT,
+            sent_at TIMESTAMP NOT NULL
+        )
+    """)
+    
     conn.commit()
     conn.close()
 
@@ -61,8 +69,8 @@ def save_pending_registration(personal_email, username, password, full_name, rol
     init_pending_db()
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    # Expire in exactly 5 minutes
-    expires_at = datetime.datetime.utcnow() + datetime.timedelta(minutes=5)
+    # Expire in exactly 10 minutes
+    expires_at = datetime.datetime.utcnow() + datetime.timedelta(minutes=10)
     cursor.execute("""
         INSERT OR REPLACE INTO pending_registrations 
         (personal_email, username, password, full_name, role, phone, specialization, verification_code, expires_at, attempts)
@@ -211,8 +219,8 @@ def save_password_reset(clinic_email, personal_email, reset_token):
     init_pending_db()
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    # Expire in exactly 5 minutes
-    expires_at = datetime.datetime.utcnow() + datetime.timedelta(minutes=5)
+    # Expire in exactly 10 minutes
+    expires_at = datetime.datetime.utcnow() + datetime.timedelta(minutes=10)
     cursor.execute("""
         INSERT OR REPLACE INTO password_resets (reset_token, clinic_email, personal_email, expires_at, attempts)
         VALUES (?, ?, ?, ?, 0)
@@ -285,6 +293,24 @@ def is_token_blacklisted(token):
     conn.close()
     return row is not None
 
+def log_email_sent(email):
+    init_pending_db()
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO email_sent_times (email, sent_at) VALUES (?, ?)", (email.strip().lower(), datetime.datetime.utcnow()))
+    conn.commit()
+    conn.close()
+
+def get_email_sent_count_last_minute(email):
+    init_pending_db()
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    one_minute_ago = datetime.datetime.utcnow() - datetime.timedelta(minutes=1)
+    cursor.execute("SELECT COUNT(*) FROM email_sent_times WHERE email = ? AND sent_at > ?", (email.strip().lower(), one_minute_ago))
+    count = cursor.fetchone()[0]
+    conn.close()
+    return count
+
 def cleanup_expired_records():
     init_pending_db()
     conn = sqlite3.connect(DB_PATH)
@@ -293,6 +319,7 @@ def cleanup_expired_records():
     cursor.execute("DELETE FROM pending_registrations WHERE expires_at < ?", (now,))
     cursor.execute("DELETE FROM password_resets WHERE expires_at < ?", (now,))
     cursor.execute("DELETE FROM blacklisted_tokens WHERE expires_at < ?", (now,))
+    cursor.execute("DELETE FROM email_sent_times WHERE sent_at < ?", (now - datetime.timedelta(hours=1),))
     conn.commit()
     conn.close()
     logger.info("Cleaned up expired records from pending store.")

@@ -48,18 +48,18 @@ export default function Register() {
 
   // Real-time calculated live generated email preview
   const generatedEmail = formData.username.trim()
-    ? `${formData.username.trim().toLowerCase()}@doctor.com`
+    ? `${formData.username.trim().toLowerCase()}@${formData.role}.com`
     : '';
 
   // Real-time inline validation flags
   const isUsernameValid = formData.username.trim() && /^[a-zA-Z0-9_]+$/.test(formData.username);
-  const isPasswordLengthValid = formData.password.length >= 6;
+  const isPasswordComplex = formData.password.length >= 8 && /[A-Z]/.test(formData.password) && /[0-9]/.test(formData.password);
   const isPasswordMatch = formData.confirmPassword === formData.password;
   const isPersonalEmailValid = formData.personal_email && !validatePersonalEmail(formData.personal_email);
   const isNameValid = formData.name.trim().length > 0;
 
   // Form validity check
-  const isFormValid = isUsernameValid && isPasswordLengthValid && isPasswordMatch && isPersonalEmailValid && isNameValid;
+  const isFormValid = isUsernameValid && isPasswordComplex && isPasswordMatch && isPersonalEmailValid && isNameValid;
 
   const handleRegister = async (e) => {
     e.preventDefault();
@@ -129,13 +129,23 @@ export default function Register() {
         title="Verify your clinical profile address."
         description="Please check the recovery email linked to your profile and enter the secure verification code to activate your account."
       >
-        <div className="auth-card" style={{ maxWidth: 440 }}>
+        <div className="auth-card" style={{ maxWidth: 440, borderRadius: '16px' }}>
+          <div style={{
+            background: '#ecfdf5', border: '1px solid #a7f3d0',
+            borderRadius: '12px', padding: '12px 16px', marginBottom: 16,
+            color: '#065f46', fontSize: '0.85rem', fontWeight: 600,
+            display: 'flex', alignItems: 'center', gap: 10
+          }}>
+            <CheckCircle2 size={18} style={{ flexShrink: 0, color: '#10b981' }} />
+            <span>If an account exists, a verification code has been sent.</span>
+          </div>
+
           <div className="auth-card-header">
             <div>
               <p className="auth-kicker">Security check</p>
               <h2>Enter Code</h2>
               <p style={{ fontSize: '0.85rem', color: 'var(--clr-text-muted, #6b7280)', marginTop: 8 }}>
-                A 6-digit code has been dispatched. Enter it below to authorize.
+                Please check your recovery email and enter the code to authorize.
               </p>
             </div>
           </div>
@@ -171,7 +181,7 @@ export default function Register() {
             <button
               type="submit"
               className="btn btn-primary auth-submit"
-              style={{ width: '100%', marginTop: 14 }}
+              style={{ width: '100%', marginTop: 14, borderRadius: '12px' }}
               disabled={loadingState || verificationCode.length !== 6}
             >
               {loadingState ? 'Verifying...' : <><CheckCircle2 size={18} /> Verify & Activate Account</>}
@@ -179,8 +189,41 @@ export default function Register() {
             
             <button
               type="button"
+              className="btn btn-ghost"
+              style={{ width: '100%', marginTop: 8, borderRadius: '12px' }}
+              disabled={loadingState}
+              onClick={async () => {
+                setLoadingState(true);
+                setErrorMsg('');
+                try {
+                  const payload = {
+                    username: formData.username.trim().toLowerCase(),
+                    full_name: formData.name.trim(),
+                    email: generatedEmail,
+                    role: formData.role,
+                    password: formData.password,
+                    personal_email: formData.personal_email.trim().toLowerCase(),
+                    phone: formData.phone.trim() || null,
+                    specialization: formData.role === 'doctor' ? (formData.specialization.trim() || null) : null
+                  };
+                  const res = await register(payload);
+                  if (res && res.status === 'success') {
+                    alert("If an account exists, a verification code has been sent.");
+                  }
+                } catch (err) {
+                  setErrorMsg(err.message || 'Failed to resend code');
+                } finally {
+                  setLoadingState(false);
+                }
+              }}
+            >
+              Resend Code
+            </button>
+
+            <button
+              type="button"
               className="btn"
-              style={{ width: '100%', marginTop: 8, background: 'none', border: '1px solid var(--clr-border, #e5e7eb)', color: 'var(--clr-text, #1f2937)' }}
+              style={{ width: '100%', marginTop: 8, background: 'none', border: '1px solid var(--clr-border, #e5e7eb)', color: 'var(--clr-text, #1f2937)', borderRadius: '12px' }}
               disabled={loadingState}
               onClick={() => {
                 setShowVerification(false);
@@ -240,6 +283,7 @@ export default function Register() {
                   type="text"
                   required
                   className="form-input"
+                  style={{ borderRadius: '12px' }}
                   placeholder="Dr. Jane Smith"
                   value={formData.name}
                   onChange={(e) => updateField('name', e.target.value)}
@@ -256,6 +300,7 @@ export default function Register() {
                   type="text"
                   required
                   className={`form-input ${formData.username && !isUsernameValid ? 'is-invalid' : ''}`}
+                  style={{ borderRadius: '12px' }}
                   placeholder="janesmith"
                   value={formData.username}
                   onChange={(e) => updateField('username', e.target.value)}
@@ -277,6 +322,7 @@ export default function Register() {
                 <select
                   id="register-role"
                   className="form-input"
+                  style={{ borderRadius: '12px' }}
                   value={formData.role}
                   onChange={(e) => updateField('role', e.target.value)}
                 >
@@ -294,6 +340,7 @@ export default function Register() {
                   id="register-phone"
                   type="tel"
                   className="form-input"
+                  style={{ borderRadius: '12px' }}
                   placeholder="+1 555-0199"
                   value={formData.phone}
                   onChange={(e) => updateField('phone', e.target.value)}
@@ -312,6 +359,7 @@ export default function Register() {
                   id="register-specialization"
                   type="text"
                   className="form-input"
+                  style={{ borderRadius: '12px' }}
                   placeholder="e.g. Orthodontics, Periodontics"
                   value={formData.specialization}
                   onChange={(e) => updateField('specialization', e.target.value)}
@@ -331,7 +379,7 @@ export default function Register() {
                 readOnly
                 disabled
                 className="form-input"
-                style={{ background: 'var(--clr-surface-2, #f3f4f6)', cursor: 'not-allowed', color: 'var(--clr-text-muted, #6b7280)', fontWeight: 600 }}
+                style={{ background: 'var(--clr-surface-2, #f3f4f6)', cursor: 'not-allowed', color: 'var(--clr-text-muted, #6b7280)', fontWeight: 600, borderRadius: '12px' }}
                 value={generatedEmail || 'Please enter username above...'}
               />
             </div>
@@ -347,6 +395,7 @@ export default function Register() {
                 type="email"
                 required
                 className={`form-input ${personalEmailError ? 'is-invalid' : ''}`}
+                style={{ borderRadius: '12px' }}
                 placeholder="you@example.com"
                 value={formData.personal_email}
                 onChange={(e) => updateField('personal_email', e.target.value)}
@@ -354,7 +403,7 @@ export default function Register() {
             </div>
             {personalEmailError && (
               <span style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: 4, display: 'block' }}>
-                {personalEmailError}
+                Please enter a valid email
               </span>
             )}
           </div>
@@ -368,23 +417,24 @@ export default function Register() {
                   id="register-password"
                   type={showPassword ? "text" : "password"}
                   required
-                  className={`form-input ${formData.password && !isPasswordLengthValid ? 'is-invalid' : ''}`}
-                  style={{ paddingRight: 40 }}
-                  placeholder="Min 6 characters"
+                  className={`form-input ${formData.password && !isPasswordComplex ? 'is-invalid' : ''}`}
+                  style={{ paddingRight: 40, borderRadius: '12px' }}
+                  placeholder="Min 8 characters"
                   value={formData.password}
                   onChange={(e) => updateField('password', e.target.value)}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
+                  aria-label="Toggle password visibility"
                   style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--clr-text-muted, #6b7280)', display: 'flex', alignItems: 'center', padding: 0, zIndex: 10 }}
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
-              {formData.password && !isPasswordLengthValid && (
+              {formData.password && !isPasswordComplex && (
                 <span style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: 4, display: 'block' }}>
-                  Must be at least 6 characters.
+                  Must be at least 8 characters, with 1 uppercase letter and 1 number.
                 </span>
               )}
             </div>
@@ -398,7 +448,7 @@ export default function Register() {
                   type={showConfirmPassword ? "text" : "password"}
                   required
                   className={`form-input ${formData.confirmPassword && !isPasswordMatch ? 'is-invalid' : ''}`}
-                  style={{ paddingRight: 40 }}
+                  style={{ paddingRight: 40, borderRadius: '12px' }}
                   placeholder="Repeat password"
                   value={formData.confirmPassword}
                   onChange={(e) => updateField('confirmPassword', e.target.value)}
@@ -406,6 +456,7 @@ export default function Register() {
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  aria-label="Toggle password visibility"
                   style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--clr-text-muted, #6b7280)', display: 'flex', alignItems: 'center', padding: 0, zIndex: 10 }}
                 >
                   {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
