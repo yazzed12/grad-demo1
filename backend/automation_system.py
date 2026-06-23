@@ -178,11 +178,13 @@ class EmailService:
             {
                 "sender": "clinic_admin@gmail.com",
                 "subject": "CLINIC_CMD: STATUS",
+                "command": "STATUS",
                 "body": "Provide clinic database health statistics."
             },
             {
                 "sender": "head_doctor@gmail.com",
                 "subject": "CLINIC_CMD: ALERT",
+                "command": "ALERT",
                 "body": "Alert: Dental X-Ray machine #2 requires immediate calibration/inspection."
             }
         ]
